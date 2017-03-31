@@ -404,22 +404,6 @@ int main(void) {
 	yoff = 0 - yReading;
 	zoff = 64 - zReading;
 
-	/* ---- Speaker ------> */
-
-	GPIO_SetDir(2, 1 << 0, 1);
-	GPIO_SetDir(2, 1 << 1, 1);
-
-	GPIO_SetDir(0, 1 << 27, 1);
-	GPIO_SetDir(0, 1 << 28, 1);
-	GPIO_SetDir(2, 1 << 13, 1);
-	GPIO_SetDir(0, 1 << 26, 1);
-
-	GPIO_ClearValue(0, 1 << 27); //LM4811-clk
-	GPIO_ClearValue(0, 1 << 28); //LM4811-up/dn
-	GPIO_ClearValue(2, 1 << 13); //LM4811-shutdn
-//
-//	/* <---- Speaker ------ */
-
 	while (1) {
 
 		while (monitorFlag == 1) {
