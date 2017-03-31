@@ -339,16 +339,9 @@ int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
-//	uint8_t dir = 1;
-//	uint8_t wait = 0;
-//
-//	uint8_t state = 0;
-//
-//	uint8_t btn1 = 1;
 	uint8_t btn2 = 1;
 	swTicks = msTicks;
 
-//	uint8_t buzzerFlag = 0;
 	int sampleFlag = 0;
 	int segNum;
 	uint32_t blinkRate = 333;
@@ -426,8 +419,6 @@ int main(void) {
 	GPIO_ClearValue(2, 1 << 13); //LM4811-shutdn
 //
 //	/* <---- Speaker ------ */
-
-//	moveBar(1, dir);
 
 	while (1) {
 
