@@ -73,33 +73,25 @@ static void updateSensors() {
 	updateAccSensor();
 }
 
-void temperatureToString(char *str) {
-	strcat(str, "Temp: ");
+void tempReadToString(char *str) {
 	char tempBuffer[5] = "";
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
 	strcat(str, tempBuffer);
-	strcat(str, " C");
 }
 
-void temperatureToString2(char *str) {
-	char tempBuffer[5] = "";
-	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
-	strcat(str, tempBuffer);
-	strcat(str, " ");
-}
-
-void lightToString(char *str) {
-	strcat(str, "L: ");
+void lightReadToString(char *str) {
 	char lightBuffer[9] = "";
-	sprintf(lightBuffer, "%d Lux", lightReading);
+	sprintf(lightBuffer, "%d", lightReading);
 	strcat(str, lightBuffer);
-	strcat(str, " ");
+	if (lightReading < 10)
+		strcat(str, "    ");
+	else if (lightReading < 100)
+		strcat(str, "  ");
+	else if (lightReading < 1000)
+		strcat(str, " ");
 }
 
-void accToString(char* xStr, char* yStr, char* zStr) {
-	strcat(xStr, "x: ");
-	strcat(yStr, "y: ");
-	strcat(zStr, "z: ");
+void accReadToString(char* xStr, char* yStr, char* zStr) {
 	char xBuffer[5] = "";
 	char yBuffer[5] = "";
 	char zBuffer[5] = "";
@@ -117,43 +109,40 @@ void accToString(char* xStr, char* yStr, char* zStr) {
 static void initMonitorOLED() {
 	oled_putString(xoled - 20, yoled - 32, "MONITOR", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
-	oled_putString(0, 12, "Light: -", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(60, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 26, "Temp : -", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_circle(62, 27, 2, OLED_COLOR_WHITE);
-	oled_putString (65, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "x : -", OLED_COLOR_WHITE,
+	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
+	oled_putString (70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "x :", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
-	oled_putString(0, 47, "y : -", OLED_COLOR_WHITE,
+	oled_putString(0, 47, "y :", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
-	oled_putString(0, 55, "z : -", OLED_COLOR_WHITE,
+	oled_putString(0, 55, "z :", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
 }
 
 // This function updates the OLED display of the sensor readings
 static void updateOLED() {
 
-	char tempString[15] = "";
-	temperatureToString(tempString);
+	char tempString[10] = "";
+	tempReadToString(tempString);
 
-	char lightString[15] = "";
-	lightToString(lightString);
+	char lightString[10] = "";
+	lightReadToString(lightString);
 
-	char xString[15] = "";
-	char yString[15] = "";
-	char zString[15] = "";
-	accToString(xString, yString, zString);
+	char xString[8] = "";
+	char yString[8] = "";
+	char zString[8] = "";
+	accReadToString(xString, yString, zString);
 
-	oled_putString(xoled - 20, yoled - 32, "MONITOR", OLED_COLOR_WHITE,
+	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 39, xString, OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
-	oled_putString(0, 8, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 16, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_circle(63, 17, 2, OLED_COLOR_WHITE);
-	oled_putString(xoled - 48, yoled - 6, xString, OLED_COLOR_WHITE,
+	oled_putString(20, 47, yString, OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
-	oled_putString(xoled - 48, yoled + 3, yString, OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
-	oled_putString(xoled - 48, yoled + 12, zString, OLED_COLOR_WHITE,
+	oled_putString(20, 55, zString, OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
 }
 
@@ -429,7 +418,7 @@ int main(void) {
 				//printf("%c : updating sensors at 5AF\n", segNum + 48);
 				sampleFlag = 1;
 				updateSensors();
-//				updateOLED();
+				updateOLED();
 			}
 			if (!(segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')) {
 				sampleFlag = 0;
@@ -493,8 +482,8 @@ int main(void) {
 				swTicks = msTicks;
 				monitorFlag = 1;
 				printf("Entering MONITOR Mode.\r\n");
-				updateSensors();
 				initMonitorOLED();
+//				updateSensors();
 //				updateOLED();
 				msTicks = 0;
 			}
