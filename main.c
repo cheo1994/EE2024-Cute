@@ -160,66 +160,6 @@ static void updateOLED() {
 static uint32_t getMsTick(void) {
 	return msTicks;
 }
-
-//static uint8_t barPos = 2;
-
-//static void moveBar(uint8_t steps, uint8_t dir) {
-//	uint16_t ledOn = 0;
-//
-//	if (barPos == 0)
-//		ledOn = (1 << 0) | (3 << 14);
-//	else if (barPos == 1)
-//		ledOn = (3 << 0) | (1 << 15);
-//	else
-//		ledOn = 0x07 << (barPos - 2);
-//
-//	barPos += (dir * steps);
-//	barPos = (barPos % 16);
-//
-//	pca9532_setLeds(ledOn, 0xffff);
-//	//pca9532_setLeds(0xffff, 0xffff);
-//}
-//
-//static void drawOled(uint8_t joyState) {
-//	static int wait = 0;
-//	static uint8_t currX = 48;
-//	static uint8_t currY = 32;
-//	static uint8_t lastX = 0;
-//	static uint8_t lastY = 0;
-//
-//	if ((joyState & JOYSTICK_CENTER) != 0) {
-//		oled_clearScreen(OLED_COLOR_BLACK);
-//		return;
-//	}
-//
-//	if (wait++ < 3)
-//		return;
-//
-//	wait = 0;
-//
-//	if ((joyState & JOYSTICK_UP) != 0 && currY > 0) {
-//		currY--;
-//	}
-//
-//	if ((joyState & JOYSTICK_DOWN) != 0 && currY < OLED_DISPLAY_HEIGHT - 1) {
-//		currY++;
-//	}
-//
-//	if ((joyState & JOYSTICK_RIGHT) != 0 && currX < OLED_DISPLAY_WIDTH - 1) {
-//		currX++;
-//	}
-//
-//	if ((joyState & JOYSTICK_LEFT) != 0 && currX > 0) {
-//		currX--;
-//	}
-//
-//	if (lastX != currX || lastY != currY) {
-//		oled_putPixel(currX, currY, OLED_COLOR_WHITE);
-//		lastX = currX;
-//		lastY = currY;
-//	}
-//}
-
 static void init_ssp(void) {
 	SSP_CFG_Type SSP_ConfigStruct;
 	PINSEL_CFG_Type PinCfg;
@@ -495,29 +435,10 @@ int main(void) {
 
 			/* ####### Accelerometer and LEDs  ###### */
 			/* # */
-			//acc_read(&x, &y, &z);
-//
-//			if (yReading < 0) {
-//				dir = 1;
-//				yReading = -yReading;
-//			} else {
-//				dir = -1;
-//			}
-//
-//			if (yReading > 1 && wait++ > (40 / (1 + (yReading / 10)))) {
-//				moveBar(1, dir);
-//				wait = 0;
-//			}
-//			/* # */
-//			/* ############################################# */
-//
-//			/* ####### Joystick and OLED  ###### */
-//			/* # */
-//
-//			state = joystick_read();
-//			//printf("State: %d\n",state);
-//			if (state != 0)
-//				drawOled(state);
+			/* # */
+			/* ############################################# */
+
+			/* ####### Joystick and OLED  ###### */
 			/* # */
 			/* ############################################# */
 
@@ -579,12 +500,6 @@ int main(void) {
 			/* # */
 			/* ############################################# */
 
-//			btn1 = (GPIO_ReadValue(0) >> 4) & 0x01;
-//
-//			if (btn1 == 0) {
-//				playSong(song);
-//				led7seg_setChar(' ', TRUE);
-//			}
 			Timer0_Wait(1);
 		}
 
