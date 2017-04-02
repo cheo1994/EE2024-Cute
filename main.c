@@ -483,17 +483,12 @@ int main(void) {
 					}
 				}
 			}
+
 			if (!(segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')) {
 				sampleFlag = 0;
 			}
-			/* # */
-			/* ############################################# */
-			/* ############ Light sensor  ########### */
-			/* # */
-			/* # */
-			/* ############################################# */
 
-			/* ############ Trimpot and RGB LED  ########### */
+			/* ########### RGB LED  ########### */
 			/* # */
 			if (fireAlert == 0 && temperatureReading > 290) {
 				printf("DANGER ALERT: %.1f\n", temp_read() / 10.0);
