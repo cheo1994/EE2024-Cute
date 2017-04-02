@@ -362,8 +362,8 @@ int main(void) {
 	int segNum;
 	uint32_t blinkRate = 333;
 
-    uint8_t* darknessMsg = "Movement in darkness was Detected.\r\n";
-    uint8_t* fireMsg = "Fire was Detected.\r\n";
+    char* darknessMsg = "Movement in darkness was Detected.\r\n";
+    char* fireMsg = "Fire was Detected.\r\n";
     int darknessMsgLen = strlen(darknessMsg);
     int fireMsgLen = strlen(fireMsg);
 
@@ -485,13 +485,14 @@ int main(void) {
 					sprintf(str, "%d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
 							lightReading, xReading, yReading, zReading);
 
+					if (fireAlert == 1) {
+						UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
+					}
+
 					if (moveInDarkAlert == 1) {
 						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
 					}
 
-					if (fireAlert == 1) {
-						UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-					}
 
 					if (NNN < 10) {
 						char dataToSend[30] = "00";
