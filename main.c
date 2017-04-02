@@ -307,32 +307,6 @@ void EINT3_IRQHandler(void) {
 		light_clearIrqStatus();
 	}
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
-	printf("clear NVIC in IQR\n");
-
-//	// Determine whether GPIO Interrupt P2.10 has occurred
-//	if ((LPC_GPIOINT ->IO2IntStatF >> 10) & 0x1) {
-//		if (monitorFlag == 0) {
-//			printf("Entering MONITOR Mode.\r\n");
-//			monitorFlag = 1;
-//			msTicks = 0;
-//
-//		} else if (monitorFlag == 1) {
-//			printf("Entering STABLE Mode.\r\n");
-//			monitorFlag = 0;
-//		}
-////      for (i=0;i<9999999;i++);
-//		LPC_GPIOINT ->IO2IntClr = 1 << 10; // Clear GPIO Interrupt P2.10
-//	}
-//
-//	if ((LPC_GPIOINT ->IO0IntStatF >> 25) & 0x1) {
-//		printf("GPIO Interrupt 0.25\n");
-//		LPC_GPIOINT ->IO0IntClr = 1 << 25;
-//	}
-//
-//	else if ((LPC_GPIOINT ->IO0IntStatF >> 24) & 0x1) {
-//		printf("GPIO Interrupt 0.24\n");
-//		LPC_GPIOINT ->IO0IntClr = 1 << 24;
-//	}
 }
 
 void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
