@@ -13,6 +13,7 @@
 #include "lpc17xx_i2c.h"
 #include "lpc17xx_ssp.h"
 #include "lpc17xx_timer.h"
+#include "lpc17xx_uart.h"
 
 #include "joystick.h"
 #include "pca9532.h"
@@ -34,6 +35,7 @@ uint8_t moveInDarkAlert = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
+int NNN = 0;
 //centre of OLED
 uint8_t xoled = 48;
 uint8_t yoled = 32;
@@ -45,13 +47,13 @@ uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
+static char* msg = NULL;
 
 // This function is called every 1us
 void SysTick_Handler(void) {
 	msTicks++;
 }
 
-// This function updates the temperature reading, light reading and accelerometer readings
 void updateAccSensor() {
 	acc_read(&xReading, &yReading, &zReading);
 	xReading = xReading + xoff;
@@ -66,7 +68,7 @@ void updateTempSensor() {
 void updateLightSensor() {
 	lightReading = light_read();
 }
-
+// This function updates the temperature reading, light reading and accelerometer readings
 static void updateSensors() {
 	updateLightSensor();
 	updateTempSensor();
@@ -149,6 +151,31 @@ static void updateOLED() {
 static uint32_t getMsTick(void) {
 	return msTicks;
 }
+
+void pinsel_uart3(void){
+    PINSEL_CFG_Type PinCfg;
+    PinCfg.Funcnum = 2;
+    PinCfg.Pinnum = 0;
+    PinCfg.Portnum = 0;
+    PINSEL_ConfigPin(&PinCfg);
+    PinCfg.Pinnum = 1;
+    PINSEL_ConfigPin(&PinCfg);
+}
+
+void init_uart(void){
+    UART_CFG_Type uartCfg;
+    uartCfg.Baud_rate = 115200;
+    uartCfg.Databits = UART_DATABIT_8;
+    uartCfg.Parity = UART_PARITY_NONE;
+    uartCfg.Stopbits = UART_STOPBIT_1;
+    //pin select for uart3;
+    pinsel_uart3();
+    //supply power & setup working parameters for uart3
+    UART_Init(LPC_UART3, &uartCfg);
+    //enable transmit for uart3
+    UART_TxCmd(LPC_UART3, ENABLE);
+}
+
 static void init_ssp(void) {
 	SSP_CFG_Type SSP_ConfigStruct;
 	PINSEL_CFG_Type PinCfg;
@@ -393,6 +420,34 @@ int main(void) {
 	yoff = 0 - yReading;
 	zoff = 64 - zReading;
 
+    uint8_t data = 0;
+    uint32_t len = 0;
+    uint8_t line[64];
+
+    init_uart();
+    //test sending message
+    msg = "Welcome to CY & K's EE2024 project \r\n";
+    UART_Send(LPC_UART3, (uint8_t *)msg , strlen(msg), BLOCKING);
+//    //test receiving a letter and sending back to port
+//    UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+//    UART_Send(LPC_UART3, &data, 1, BLOCKING);
+////    test receiving message without knowing message length
+//    len = 0;
+//    do
+//    {   UART_Receive(LPC_UART3, &data, 1, BLOCKING);
+//
+//        if (data != '\r')
+//        {
+//            len++;
+//            line[len-1] = data;
+//        }
+//    } while ((len<64) && (data != '\r'));
+//    line[len]=0;
+//    UART_SendString(LPC_UART3, &line);
+//    printf("--%s--\n", line);
+//    while (1);
+//    return 0;
+
 	while (1) {
 
 		while (monitorFlag == 1) {
@@ -419,6 +474,24 @@ int main(void) {
 				sampleFlag = 1;
 				updateSensors();
 				updateOLED();
+				if (segNum + 48 == 'F') {
+					char str[30] = "";
+					sprintf(str, "%d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN, temperatureReading / 10.0,
+							lightReading, xReading, yReading, zReading);
+					if (NNN < 10) {
+						char dataToSend[30] = "00";
+						strcat(dataToSend, str);
+						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
+					}
+					else if (NNN < 100){
+						char dataToSend[30] = "0";
+						strcat(dataToSend, str);
+						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
+					}
+					else {
+						UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+					}
+				}
 			}
 			if (!(segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')) {
 				sampleFlag = 0;
