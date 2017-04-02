@@ -476,7 +476,7 @@ int main(void) {
 				updateOLED();
 				if (segNum + 48 == 'F') {
 					char str[30] = "";
-					sprintf(str, "%d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN, temperatureReading / 10.0,
+					sprintf(str, "%d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
 							lightReading, xReading, yReading, zReading);
 					if (NNN < 10) {
 						char dataToSend[30] = "00";
