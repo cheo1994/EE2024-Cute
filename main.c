@@ -329,17 +329,21 @@ int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
-	uint8_t btn2 = 1;
+	uint8_t sw4 = 1;
+	int sw4HoldStatus = 0;
 	swTicks = msTicks;
+	uint32_t debounceTime = 100;
 
 	int sampleFlag = 0;
 	int segNum;
 	uint32_t blinkRate = 333;
 
+	char* monitorMsg = "Entering MONITOR Mode.\r\n";
     char* darknessMsg = "Movement in darkness was Detected.\r\n";
     char* fireMsg = "Fire was Detected.\r\n";
     int darknessMsgLen = strlen(darknessMsg);
     int fireMsgLen = strlen(fireMsg);
+    int monitorMsgLen = strlen(monitorMsg);
 
 	init_i2c();
 	init_ssp();
@@ -512,15 +516,20 @@ int main(void) {
 			if (fireAlert == 1) {
 				blinkRedLed(msTicks, blinkRate);
 			}
-
-			btn2 = (GPIO_ReadValue(1) >> 31) & 0x01;
-			if (btn2 == 0 && (msTicks - swTicks >= 200)) {
-				swTicks = msTicks;
-				monitorFlag = 0;
-				printf("Entering STABLE Mode.\r\n");
-			}
 			/* # */
 			/* ############################################# */
+
+			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
+
+			if (sw4 == 1) {
+				sw4HoldStatus = 0;
+			}
+
+			if (sw4 == 0 && sw4HoldStatus == 0 && ( (msTicks - swTicks) >= debounceTime)) {
+				swTicks = msTicks;
+				monitorFlag = 0;
+				sw4HoldStatus = 1;
+			}
 
 			Timer0_Wait(1);
 		}
@@ -534,16 +543,22 @@ int main(void) {
 
 		while (monitorFlag == 0) {
 
-			btn2 = (GPIO_ReadValue(1) >> 31) & 0x01;
+			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
-			if (btn2 == 0 && (msTicks - swTicks >= 500)) {
-				swTicks = msTicks;
+			if (sw4 == 1) {
+				sw4HoldStatus = 0;
+			}
+
+			if ( (sw4 == 0) && sw4HoldStatus == 0 && (msTicks - swTicks >= debounceTime) ) {
+//				if (sw4 == 0) {
+//				swTicks = msTicks;
+//				printf("swTicks = %d\n", swTicks);
 				monitorFlag = 1;
-				printf("Entering MONITOR Mode.\r\n");
+				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 				initMonitorOLED();
-//				updateSensors();
-//				updateOLED();
 				msTicks = 0;
+				swTicks = 0;
+				sw4HoldStatus = 1;
 			}
 		}
 
