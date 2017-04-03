@@ -569,7 +569,7 @@ int main(void) {
 				sw4HoldStatus = 1;
 			}
 		}
-
+		lightThresholdInit();
 	}
 }
 
