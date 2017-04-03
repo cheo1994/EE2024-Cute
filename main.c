@@ -317,12 +317,20 @@ void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
 	}
 }
 
+void offBlueLed() {
+	GPIO_ClearValue(0, (1 << 26));
+}
+
 void blinkRedLed(volatile uint32_t msTicks, uint32_t rate) {
 	if ((msTicks / rate) % 2) {
 		GPIO_SetValue(2, 1);
 	} else {
 		GPIO_ClearValue(2, 1);
 	}
+}
+
+void offRedLed() {
+	GPIO_ClearValue(2, 1);
 }
 
 int main(void) {
@@ -471,7 +479,6 @@ int main(void) {
 						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
 					}
 
-
 					if (NNN < 10) {
 						char dataToSend[30] = "00";
 						strcat(dataToSend, str);
@@ -525,7 +532,8 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-			if (sw4 == 0 && sw4HoldStatus == 0 && ( (msTicks - swTicks) >= debounceTime)) {
+//			if (sw4 == 0 && sw4HoldStatus == 0 && ( (msTicks - swTicks) >= debounceTime)) {
+				if (sw4 == 0 && sw4HoldStatus == 0) {
 				swTicks = msTicks;
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
@@ -540,6 +548,8 @@ int main(void) {
 		moveInDarkAlert = 0;
 		fireAlert = 0;
 		lightLowWarning = 0;
+		offBlueLed();
+		offRedLed();
 
 		while (monitorFlag == 0) {
 
@@ -549,10 +559,10 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-			if ( (sw4 == 0) && sw4HoldStatus == 0 && (msTicks - swTicks >= debounceTime) ) {
+//			if ( (sw4 == 0) && sw4HoldStatus == 0 && (msTicks - swTicks >= debounceTime) ) {
+			if (sw4 == 0 && sw4HoldStatus == 0) {
 //				if (sw4 == 0) {
 //				swTicks = msTicks;
-//				printf("swTicks = %d\n", swTicks);
 				monitorFlag = 1;
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 				initMonitorOLED();
