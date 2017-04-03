@@ -282,9 +282,6 @@ static void init_GPIO(void) {
 
 // EINT3 Interrupt Handler
 void EINT3_IRQHandler(void) {
-//	int i;
-//	printf("Entering EINT3 \n");
-//
 //	if (acc_getInt1Status()) {
 //		printf("Accelerometer detection \n");
 //		acc_clearIntStatus();
@@ -293,12 +290,12 @@ void EINT3_IRQHandler(void) {
 	if ((light_getIrqStatus())) {
 //		printf("Entered light interrupt ISR\n");
 		if (lightLowWarning == 0) {
-			printf("Low light conditions, %d\n", light_read());
+//			printf("Low light conditions, %d\n", light_read());
 			lightLowWarning = 1;
 			light_setLoThreshold(0);
 			light_setHiThreshold(51);
 		} else if (lightLowWarning == 1) {
-			printf("Safe light conditions, %d\n", light_read());
+//			printf("Safe light conditions, %d\n", light_read());
 			lightLowWarning = 0;
 			light_setHiThreshold(3891);
 			light_setLoThreshold(50);
@@ -374,6 +371,7 @@ int main(void) {
 	oled_init();
 	led7seg_init();
 	rgb_init();
+    init_uart();
 	light_enable();
 	light_setRange(LIGHT_RANGE_4000);
 	light_clearIrqStatus();
@@ -414,14 +412,13 @@ int main(void) {
 	yoff = 0 - yReading;
 	zoff = 64 - zReading;
 
-    uint8_t data = 0;
-    uint32_t len = 0;
-    uint8_t line[64];
-
-    init_uart();
-    //test sending message
-    msg = "Welcome to CY & K's EE2024 project \r\n";
-    UART_Send(LPC_UART3, (uint8_t *)msg , strlen(msg), BLOCKING);
+//	uart test code from lecture
+//    uint8_t data = 0;
+//    uint32_t len = 0;
+//    uint8_t line[64];
+//    //test sending message
+//    msg = "Welcome to CY & K's EE2024 project \r\n";
+//    UART_Send(LPC_UART3, (uint8_t *)msg , strlen(msg), BLOCKING);
 //    //test receiving a letter and sending back to port
 //    UART_Receive(LPC_UART3, &data, 1, BLOCKING);
 //    UART_Send(LPC_UART3, &data, 1, BLOCKING);
@@ -442,20 +439,9 @@ int main(void) {
 //    while (1);
 //    return 0;
 
-
 	while (1) {
 
 		while (monitorFlag == 1) {
-
-			/* ####### Accelerometer and LEDs  ###### */
-			/* # */
-			/* # */
-			/* ############################################# */
-
-			/* ####### Joystick and OLED  ###### */
-			/* # */
-			/* ############################################# */
-
 			/* ############ 7 Segment LED Timer  ########### */
 			/* # */
 
@@ -504,7 +490,6 @@ int main(void) {
 			/* ########### RGB LED  ########### */
 			/* # */
 			if (fireAlert == 0 && temperatureReading > 290) {
-				printf("DANGER ALERT: %.1f\n", temp_read() / 10.0);
 				fireAlert = 1;
 			}
 
