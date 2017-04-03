@@ -333,6 +333,17 @@ void offRedLed() {
 	GPIO_ClearValue(2, 1);
 }
 
+void lightThresholdInit() {
+	if (light_read() < 51) {
+		lightLowWarning = 1;
+		light_setLoThreshold(0);
+		light_setHiThreshold(51);
+	} else {
+		lightLowWarning = 0;
+		light_setLoThreshold(50);
+	}
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -340,7 +351,6 @@ int main(void) {
 	uint8_t sw4 = 1;
 	int sw4HoldStatus = 0;
 	swTicks = msTicks;
-	uint32_t debounceTime = 100;
 
 	int sampleFlag = 0;
 	int segNum;
@@ -367,14 +377,7 @@ int main(void) {
 	light_enable();
 	light_setRange(LIGHT_RANGE_4000);
 	light_clearIrqStatus();
-	if (light_read() < 51) {
-		lightLowWarning = 1;
-		light_setLoThreshold(0);
-		light_setHiThreshold(51);
-	} else {
-		lightLowWarning = 0;
-		light_setLoThreshold(50);
-	}
+	lightThresholdInit();
 	temp_init(getMsTick);
 
 //	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
@@ -462,7 +465,6 @@ int main(void) {
 			led7seg_setChar(segNum + 48, TRUE);
 			if ((segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')
 					&& sampleFlag == 0) {
-				//printf("%c : updating sensors at 5AF\n", segNum + 48);
 				sampleFlag = 1;
 				updateSensors();
 				updateOLED();
@@ -532,7 +534,6 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-//			if (sw4 == 0 && sw4HoldStatus == 0 && ( (msTicks - swTicks) >= debounceTime)) {
 				if (sw4 == 0 && sw4HoldStatus == 0) {
 				swTicks = msTicks;
 				monitorFlag = 0;
@@ -559,10 +560,7 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-//			if ( (sw4 == 0) && sw4HoldStatus == 0 && (msTicks - swTicks >= debounceTime) ) {
 			if (sw4 == 0 && sw4HoldStatus == 0) {
-//				if (sw4 == 0) {
-//				swTicks = msTicks;
 				monitorFlag = 1;
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 				initMonitorOLED();
