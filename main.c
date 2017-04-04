@@ -48,6 +48,12 @@ int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
 //static char* msg = NULL;
+static uint8_t invertedChars[] = {
+	/* digits 0 - 9 */
+	0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
+	/* A - F */
+	0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA
+};
 
 // This function is called every 1us
 void SysTick_Handler(void) {
@@ -419,8 +425,7 @@ int main(void) {
     int monitorMsgLen = strlen(monitorMsg);
 
 	initAll();
-	initTimer0Interrupt();
-	TIM_Cmd(LPC_TIM0,ENABLE);
+
 //	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 //	NVIC_ClearPendingIRQ(EINT0_IRQn);
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
@@ -464,7 +469,7 @@ int main(void) {
 			segNum = msTicks / 1000 % 16;
 //			if (segNum > 9)
 //				segNum += 7;
-			led7seg_setChar(segNum + '0', TRUE);
+			led7seg_setChar(invertedChars[segNum], TRUE);
 			if ((segNum + 48 == '5' || segNum + 55 == 'A' || segNum + 55 == 'F')
 					&& sampleFlag == 0) {
 				sampleFlag = 1;
@@ -552,6 +557,8 @@ int main(void) {
 			}
 		}
 		lightThresholdInit();
+		initTimer0Interrupt();
+		TIM_Cmd(LPC_TIM0,ENABLE);
 	}
 }
 
