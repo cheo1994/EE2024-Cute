@@ -386,7 +386,6 @@ void initStableMode() {
 	offRedLed();
 	segNum = 1;
 	TIM_Cmd(LPC_TIM0, DISABLE);
-//	TIM_DeInit(LPC_TIM0);
 }
 
 void initTimer0Interrupt() {
@@ -492,13 +491,6 @@ int main(void) {
 		TIM_Cmd(LPC_TIM0,ENABLE);
 
 		while (monitorFlag == 1) {
-			/* ############ 7 Segment LED Timer  ########### */
-			/* # */
-
-//			num = msTicks / 1000 % 16;
-//			if (num > 9)
-//				num += 7;
-//			led7seg_setChar(invertedChars[num], TRUE);
 			if ((num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')
 					&& sampleFlag == 0) {
 				sampleFlag = 1;
@@ -525,8 +517,6 @@ int main(void) {
 				sampleFlag = 0;
 			}
 
-			/* ########### RGB LED  ########### */
-			/* # */
 			if (fireAlert == 0 && temperatureReading > 290) {
 				fireAlert = 1;
 			}
@@ -548,8 +538,6 @@ int main(void) {
 			if (fireAlert == 1) {
 				blinkRedLed(msTicks, blinkRate);
 			}
-			/* # */
-			/* ############################################# */
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
