@@ -460,10 +460,10 @@ int main(void) {
 			/* # */
 
 			segNum = msTicks / 1000 % 16;
-			if (segNum > 9)
-				segNum += 7;
-			led7seg_setChar(segNum + 48, TRUE);
-			if ((segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')
+//			if (segNum > 9)
+//				segNum += 7;
+			led7seg_setChar(segNum + '0', TRUE);
+			if ((segNum + 48 == '5' || segNum + 55 == 'A' || segNum + 55 == 'F')
 					&& sampleFlag == 0) {
 				sampleFlag = 1;
 				updateSensors();
@@ -497,7 +497,7 @@ int main(void) {
 				}
 			}
 
-			if (!(segNum + 48 == '5' || segNum + 48 == 'A' || segNum + 48 == 'F')) {
+			if (!(segNum + 48 == '5' || segNum + 55 == 'A' || segNum + 55 == 'F')) {
 				sampleFlag = 0;
 			}
 
