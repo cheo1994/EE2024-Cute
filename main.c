@@ -98,15 +98,15 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 	char xBuffer[5] = "";
 	char yBuffer[5] = "";
 	char zBuffer[5] = "";
-	sprintf(xBuffer, "%d", xReading);
+	sprintf(xBuffer, "%3d", xReading);
 	strcat(xStr, xBuffer);
-	strcat(xStr, "  ");
-	sprintf(yBuffer, "%d", yReading);
+//	strcat(xStr, "  ");
+	sprintf(yBuffer, "%3d", yReading);
 	strcat(yStr, yBuffer);
-	strcat(yStr, "  ");
-	sprintf(zBuffer, "%d", zReading);
+//	strcat(yStr, "  ");
+	sprintf(zBuffer, "%3d", zReading);
 	strcat(zStr, zBuffer);
-	strcat(zStr, "  ");
+//	strcat(zStr, "  ");
 }
 
 static void initMonitorOLED() {
