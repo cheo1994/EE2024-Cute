@@ -427,8 +427,13 @@ int main(void) {
 
 	initAll();
 
-//	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
-//	NVIC_ClearPendingIRQ(EINT0_IRQn);
+	// Enable GPIO Interrupt P2.10 (SW3)
+	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
+
+	LPC_SC->EXTINT = 1;
+
+	NVIC_ClearPendingIRQ(EINT0_IRQn);
+	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
@@ -439,8 +444,6 @@ int main(void) {
 //	// Enable GPIO Interrupt P1.31
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 31;
 
-//	// Enable GPIO Interrupt P2.10 (SW3)
-//	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
 
 //	// Enable GPIO Interrupt P0.24 & P0.25 (SW5)
 //	LPC_GPIOINT ->IO0IntEnF |= 1 << 24;
