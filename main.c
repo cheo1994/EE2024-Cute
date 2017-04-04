@@ -47,7 +47,7 @@ uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
-static char* msg = NULL;
+//static char* msg = NULL;
 
 // This function is called every 1us
 void SysTick_Handler(void) {
@@ -361,6 +361,17 @@ void initAll() {
 	temp_init(getMsTick);
 }
 
+void initStableMode() {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	led7seg_setChar(' ', FALSE);
+	GPIO_ClearValue(2, 1);
+	moveInDarkAlert = 0;
+	fireAlert = 0;
+	lightLowWarning = 0;
+	offBlueLed();
+	offRedLed();
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -531,14 +542,7 @@ int main(void) {
 			Timer0_Wait(1);
 		}
 
-		oled_clearScreen(OLED_COLOR_BLACK);
-		led7seg_setChar(' ', FALSE);
-		GPIO_ClearValue(2, 1);
-		moveInDarkAlert = 0;
-		fireAlert = 0;
-		lightLowWarning = 0;
-		offBlueLed();
-		offRedLed();
+		initStableMode();
 
 		while (monitorFlag == 0) {
 
