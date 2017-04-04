@@ -50,11 +50,10 @@ int32_t yoff = 0;
 int32_t zoff = 0;
 //static char* msg = NULL;
 static uint8_t invertedChars[] = {
-	/* digits 0 - 9 */
-	0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
-	/* A - F */
-	0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA
-};
+/* digits 0 - 9 */
+0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
+/* A - F */
+0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA };
 
 // This function is called every 1us
 void SysTick_Handler(void) {
@@ -117,19 +116,15 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 }
 
 static void initMonitorOLED() {
-	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
-	oled_putString (70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "x :", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
-	oled_putString(0, 47, "y :", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
-	oled_putString(0, 55, "z :", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
+	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 // This function updates the OLED display of the sensor readings
@@ -148,40 +143,37 @@ static void updateOLED() {
 
 	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 39, xString, OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
-	oled_putString(20, 47, yString, OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
-	oled_putString(20, 55, zString, OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
+	oled_putString(20, 39, xString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 47, yString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 55, zString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 static uint32_t getMsTick(void) {
 	return msTicks;
 }
 
-void pinsel_uart3(void){
-    PINSEL_CFG_Type PinCfg;
-    PinCfg.Funcnum = 2;
-    PinCfg.Pinnum = 0;
-    PinCfg.Portnum = 0;
-    PINSEL_ConfigPin(&PinCfg);
-    PinCfg.Pinnum = 1;
-    PINSEL_ConfigPin(&PinCfg);
+void pinsel_uart3(void) {
+	PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
 }
 
-void init_uart(void){
-    UART_CFG_Type uartCfg;
-    uartCfg.Baud_rate = 115200;
-    uartCfg.Databits = UART_DATABIT_8;
-    uartCfg.Parity = UART_PARITY_NONE;
-    uartCfg.Stopbits = UART_STOPBIT_1;
-    //pin select for uart3;
-    pinsel_uart3();
-    //supply power & setup working parameters for uart3
-    UART_Init(LPC_UART3, &uartCfg);
-    //enable transmit for uart3
-    UART_TxCmd(LPC_UART3, ENABLE);
+void init_uart(void) {
+	UART_CFG_Type uartCfg;
+	uartCfg.Baud_rate = 115200;
+	uartCfg.Databits = UART_DATABIT_8;
+	uartCfg.Parity = UART_PARITY_NONE;
+	uartCfg.Stopbits = UART_STOPBIT_1;
+	//pin select for uart3;
+	pinsel_uart3();
+	//supply power & setup working parameters for uart3
+	UART_Init(LPC_UART3, &uartCfg);
+	//enable transmit for uart3
+	UART_TxCmd(LPC_UART3, ENABLE);
 }
 
 static void init_ssp(void) {
@@ -289,11 +281,11 @@ static void init_GPIO(void) {
 //}
 
 void TIMER0_IRQHandler(void) {
-	if (LPC_TIM0->IR & (1 << 0)) {
-		led7seg_setChar(invertedChars[(segNum++)%16], TRUE);
-	TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
-	NVIC_ClearPendingIRQ(TIMER0_IRQn);
-}
+	if (LPC_TIM0 ->IR & (1 << 0)) {
+		led7seg_setChar(invertedChars[(segNum++) % 16], TRUE);
+		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+		NVIC_ClearPendingIRQ(TIMER0_IRQn);
+	}
 }
 
 // EINT3 Interrupt Handler
@@ -421,11 +413,11 @@ int main(void) {
 	uint32_t blinkRate = 333;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
-    char* darknessMsg = "Movement in darkness was Detected.\r\n";
-    char* fireMsg = "Fire was Detected.\r\n";
-    int darknessMsgLen = strlen(darknessMsg);
-    int fireMsgLen = strlen(fireMsg);
-    int monitorMsgLen = strlen(monitorMsg);
+	char* darknessMsg = "Movement in darkness was Detected.\r\n";
+	char* fireMsg = "Fire was Detected.\r\n";
+	int darknessMsgLen = strlen(darknessMsg);
+	int fireMsgLen = strlen(fireMsg);
+	int monitorMsgLen = strlen(monitorMsg);
 
 	initAll();
 
@@ -488,7 +480,7 @@ int main(void) {
 
 		lightThresholdInit();
 		initTimer0Interrupt();
-		TIM_Cmd(LPC_TIM0,ENABLE);
+		TIM_Cmd(LPC_TIM0, ENABLE);
 
 		while (monitorFlag == 1) {
 			if ((num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')
@@ -498,18 +490,21 @@ int main(void) {
 				updateOLED();
 				if (num + 55 == 'F') {
 					char str[30] = "";
-					sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
-							lightReading, xReading, yReading, zReading);
+					sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+							temperatureReading / 10.0, lightReading, xReading,
+							yReading, zReading);
 
 					if (fireAlert == 1) {
 						UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
 					}
 
 					if (moveInDarkAlert == 1) {
-						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen,
+								BLOCKING);
 					}
 
-					UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+					UART_Send(LPC_UART3, (uint8_t *) str, strlen(str),
+							BLOCKING);
 				}
 			}
 
