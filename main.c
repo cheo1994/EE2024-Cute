@@ -297,7 +297,6 @@ void EINT3_IRQHandler(void) {
 //	}
 
 	if ((light_getIrqStatus())) {
-//		printf("Entered light interrupt ISR\n");
 		if (lightLowWarning == 0) {
 //			printf("Low light conditions, %d\n", light_read());
 			lightLowWarning = 1;
@@ -454,33 +453,6 @@ int main(void) {
 	yoff = 0 - yReading;
 	zoff = 64 - zReading;
 
-//	uart test code from lecture
-//    uint8_t data = 0;
-//    uint32_t len = 0;
-//    uint8_t line[64];
-//    //test sending message
-//    msg = "Welcome to CY & K's EE2024 project \r\n";
-//    UART_Send(LPC_UART3, (uint8_t *)msg , strlen(msg), BLOCKING);
-//    //test receiving a letter and sending back to port
-//    UART_Receive(LPC_UART3, &data, 1, BLOCKING);
-//    UART_Send(LPC_UART3, &data, 1, BLOCKING);
-////    test receiving message without knowing message length
-//    len = 0;
-//    do
-//    {   UART_Receive(LPC_UART3, &data, 1, BLOCKING);
-//
-//        if (data != '\r')
-//        {
-//            len++;
-//            line[len-1] = data;
-//        }
-//    } while ((len<64) && (data != '\r'));
-//    line[len]=0;
-//    UART_SendString(LPC_UART3, &line);
-//    printf("--%s--\n", line);
-//    while (1);
-//    return 0;
-
 	while (1) {
 
 		while (monitorFlag == 1) {
@@ -509,18 +481,6 @@ int main(void) {
 						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
 					}
 
-//					if (NNN < 10) {
-//						char dataToSend[30] = "00";
-//						strcat(dataToSend, str);
-//						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
-//					}
-//					else if (NNN < 100){
-//						char dataToSend[30] = "0";
-//						strcat(dataToSend, str);
-//						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
-//					}
-//					else {
-//					}
 					UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
 				}
 			}
