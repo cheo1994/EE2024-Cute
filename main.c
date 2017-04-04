@@ -35,8 +35,10 @@ uint8_t moveInDarkAlert = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
-int segNum = 1;
+int segNum = 0;
 int NNN = 0;
+int updateOledFlag = 0;
+int sendCemsFlag = 0;
 //centre of OLED
 //uint8_t xoled = 48;
 //uint8_t yoled = 32;
@@ -115,7 +117,7 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 //	strcat(zStr, "  ");
 }
 
-static void initMonitorOLED() {
+static void initMonitorOled() {
 	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -128,7 +130,7 @@ static void initMonitorOLED() {
 }
 
 // This function updates the OLED display of the sensor readings
-static void updateOLED() {
+static void updateOled() {
 
 	char tempString[10] = "";
 	tempReadToString(tempString);
@@ -282,7 +284,14 @@ static void init_GPIO(void) {
 
 void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
-		led7seg_setChar(invertedChars[(segNum++) % 16], TRUE);
+		segNum = ++segNum % 16;
+		led7seg_setChar(invertedChars[segNum], TRUE);
+		if (segNum == 5 || segNum == 10 || segNum == 15) {
+			updateOledFlag = 1;
+			if (segNum == 15) {
+				sendCemsFlag = 1;
+			}
+		}
 		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 		NVIC_ClearPendingIRQ(TIMER0_IRQn);
 	}
@@ -376,7 +385,7 @@ void initStableMode() {
 	lightLowWarning = 0;
 	offBlueLed();
 	offRedLed();
-	segNum = 1;
+	segNum = 0;
 	TIM_Cmd(LPC_TIM0, DISABLE);
 }
 
@@ -470,7 +479,7 @@ int main(void) {
 			if (sw4 == 0 && sw4HoldStatus == 0) {
 				monitorFlag = 1;
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				initMonitorOLED();
+				initMonitorOled();
 				led7seg_setChar(invertedChars[0], TRUE);
 				msTicks = 0;
 				swTicks = 0;
@@ -483,33 +492,11 @@ int main(void) {
 		TIM_Cmd(LPC_TIM0, ENABLE);
 
 		while (monitorFlag == 1) {
-			if ((num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')
-					&& sampleFlag == 0) {
-				sampleFlag = 1;
+
+			if (updateOledFlag == 1) {
 				updateSensors();
-				updateOLED();
-				if (num + 55 == 'F') {
-					char str[30] = "";
-					sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
-							temperatureReading / 10.0, lightReading, xReading,
-							yReading, zReading);
-
-					if (fireAlert == 1) {
-						UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-					}
-
-					if (moveInDarkAlert == 1) {
-						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen,
-								BLOCKING);
-					}
-
-					UART_Send(LPC_UART3, (uint8_t *) str, strlen(str),
-							BLOCKING);
-				}
-			}
-
-			if (!(num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')) {
-				sampleFlag = 0;
+				updateOled();
+				updateOledFlag = 0;
 			}
 
 			if (fireAlert == 0 && temperatureReading > 290) {
