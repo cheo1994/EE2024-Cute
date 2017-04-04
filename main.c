@@ -281,6 +281,12 @@ static void init_GPIO(void) {
 //	NVIC_ClearPendingIRQ(EINT0_IRQn);
 //}
 
+void TIMER0_IRQHandler(void) {
+	printf("TIMER INTERRUPT IS WORKING~~ TROLOLOLOL\n");
+	TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+	NVIC_ClearPendingIRQ(TIMER0_IRQn);
+}
+
 // EINT3 Interrupt Handler
 void EINT3_IRQHandler(void) {
 //	if (acc_getInt1Status()) {
@@ -370,6 +376,25 @@ void initStableMode() {
 	lightLowWarning = 0;
 	offBlueLed();
 	offRedLed();
+}
+
+void initTimerInterrupt() {
+	TIM_MATCHCFG_Type timMatchCfg;
+	timMatchCfg.MatchChannel = 0;
+	timMatchCfg.IntOnMatch = 1;
+	timMatchCfg.StopOnMatch = 0;
+	timMatchCfg.ResetOnMatch = 0;
+	timMatchCfg.ExtMatchOutputType = 0;
+	timMatchCfg.MatchValue = 1000;
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timMatchCfg);
+
+	TIM_TIMERCFG_Type timTimerCfg;
+	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
+	timTimerCfg.PrescaleValue = 1000;
+	TIM_ConfigMatch(LPC_TIM0, &timTimerCfg);
+
+	NVIC_EnableIRQ(TIMER0_IRQn);
+	NVIC_ClearPendingIRQ(TIMER0_IRQn);
 }
 
 int main(void) {
