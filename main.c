@@ -37,8 +37,8 @@ int8_t yReading;
 int8_t zReading;
 int NNN = 0;
 //centre of OLED
-uint8_t xoled = 48;
-uint8_t yoled = 32;
+//uint8_t xoled = 48;
+//uint8_t yoled = 32;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -68,6 +68,7 @@ void updateTempSensor() {
 void updateLightSensor() {
 	lightReading = light_read();
 }
+
 // This function updates the temperature reading, light reading and accelerometer readings
 static void updateSensors() {
 	updateLightSensor();
@@ -109,7 +110,7 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 }
 
 static void initMonitorOLED() {
-	oled_putString(xoled - 20, yoled - 32, "MONITOR", OLED_COLOR_WHITE,
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
 	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -341,6 +342,25 @@ void lightThresholdInit() {
 	}
 }
 
+void initAll() {
+	init_i2c();
+	init_ssp();
+	init_GPIO();
+	pca9532_init();
+	//	joystick_init();
+	acc_init();
+	//	acc_clearIntStatus();
+	oled_init();
+	led7seg_init();
+	rgb_init();
+	init_uart();
+	light_enable();
+	light_setRange(LIGHT_RANGE_4000);
+	light_clearIrqStatus();
+	lightThresholdInit();
+	temp_init(getMsTick);
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -360,24 +380,7 @@ int main(void) {
     int fireMsgLen = strlen(fireMsg);
     int monitorMsgLen = strlen(monitorMsg);
 
-	init_i2c();
-	init_ssp();
-	init_GPIO();
-
-	pca9532_init();
-	joystick_init();
-	acc_init();
-//	acc_clearIntStatus();
-	oled_init();
-	led7seg_init();
-	rgb_init();
-    init_uart();
-	light_enable();
-	light_setRange(LIGHT_RANGE_4000);
-	light_clearIrqStatus();
-	lightThresholdInit();
-	temp_init(getMsTick);
-
+	initAll();
 //	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 //	NVIC_ClearPendingIRQ(EINT0_IRQn);
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
