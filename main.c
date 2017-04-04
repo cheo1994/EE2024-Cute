@@ -84,14 +84,14 @@ void tempReadToString(char *str) {
 
 void lightReadToString(char *str) {
 	char lightBuffer[9] = "";
-	sprintf(lightBuffer, "%d", lightReading);
+	sprintf(lightBuffer, "%4d", lightReading);
 	strcat(str, lightBuffer);
-	if (lightReading < 10)
-		strcat(str, "    ");
-	else if (lightReading < 100)
-		strcat(str, "  ");
-	else if (lightReading < 1000)
-		strcat(str, " ");
+//	if (lightReading < 10)
+//		strcat(str, "    ");
+//	else if (lightReading < 100)
+//		strcat(str, "  ");
+//	else if (lightReading < 1000)
+//		strcat(str, " ");
 }
 
 void accReadToString(char* xStr, char* yStr, char* zStr) {
@@ -533,7 +533,7 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-				if (sw4 == 0 && sw4HoldStatus == 0) {
+			if (sw4 == 0 && sw4HoldStatus == 0) {
 				swTicks = msTicks;
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
