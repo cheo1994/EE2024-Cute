@@ -84,29 +84,29 @@ void tempReadToString(char *str) {
 
 void lightReadToString(char *str) {
 	char lightBuffer[9] = "";
-	sprintf(lightBuffer, "%d", lightReading);
+	sprintf(lightBuffer, "%4d", lightReading);
 	strcat(str, lightBuffer);
-	if (lightReading < 10)
-		strcat(str, "    ");
-	else if (lightReading < 100)
-		strcat(str, "  ");
-	else if (lightReading < 1000)
-		strcat(str, " ");
+//	if (lightReading < 10)
+//		strcat(str, "    ");
+//	else if (lightReading < 100)
+//		strcat(str, "  ");
+//	else if (lightReading < 1000)
+//		strcat(str, " ");
 }
 
 void accReadToString(char* xStr, char* yStr, char* zStr) {
 	char xBuffer[5] = "";
 	char yBuffer[5] = "";
 	char zBuffer[5] = "";
-	sprintf(xBuffer, "%d", xReading);
+	sprintf(xBuffer, "%3d", xReading);
 	strcat(xStr, xBuffer);
-	strcat(xStr, "  ");
-	sprintf(yBuffer, "%d", yReading);
+//	strcat(xStr, "  ");
+	sprintf(yBuffer, "%3d", yReading);
 	strcat(yStr, yBuffer);
-	strcat(yStr, "  ");
-	sprintf(zBuffer, "%d", zReading);
+//	strcat(yStr, "  ");
+	sprintf(zBuffer, "%3d", zReading);
 	strcat(zStr, zBuffer);
-	strcat(zStr, "  ");
+//	strcat(zStr, "  ");
 }
 
 static void initMonitorOLED() {
@@ -561,7 +561,7 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-				if (sw4 == 0 && sw4HoldStatus == 0) {
+			if (sw4 == 0 && sw4HoldStatus == 0) {
 				swTicks = msTicks;
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
