@@ -35,6 +35,7 @@ uint8_t moveInDarkAlert = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
+int segNum = 1;
 int NNN = 0;
 //centre of OLED
 //uint8_t xoled = 48;
@@ -289,7 +290,7 @@ static void init_GPIO(void) {
 
 void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0->IR & (1 << 0)) {
-	printf("TIMER INTERRUPT IS WORKING~~ TROLOLOLOL\n");
+		led7seg_setChar(invertedChars[(segNum++)%16], TRUE);
 	TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 	NVIC_ClearPendingIRQ(TIMER0_IRQn);
 }
@@ -383,6 +384,9 @@ void initStableMode() {
 	lightLowWarning = 0;
 	offBlueLed();
 	offRedLed();
+	segNum = 1;
+	TIM_Cmd(LPC_TIM0, DISABLE);
+//	TIM_DeInit(LPC_TIM0);
 }
 
 void initTimer0Interrupt() {
@@ -414,7 +418,7 @@ int main(void) {
 	swTicks = msTicks;
 
 	int sampleFlag = 0;
-	int segNum;
+	char num = 'A' - 55;
 	uint32_t blinkRate = 333;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
@@ -462,20 +466,45 @@ int main(void) {
 
 	while (1) {
 
+		initStableMode();
+
+		while (monitorFlag == 0) {
+
+			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
+
+			if (sw4 == 1) {
+				sw4HoldStatus = 0;
+			}
+
+			if (sw4 == 0 && sw4HoldStatus == 0) {
+				monitorFlag = 1;
+				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
+				initMonitorOLED();
+				led7seg_setChar(invertedChars[0], TRUE);
+				msTicks = 0;
+				swTicks = 0;
+				sw4HoldStatus = 1;
+			}
+		}
+
+		lightThresholdInit();
+		initTimer0Interrupt();
+		TIM_Cmd(LPC_TIM0,ENABLE);
+
 		while (monitorFlag == 1) {
 			/* ############ 7 Segment LED Timer  ########### */
 			/* # */
 
-			segNum = msTicks / 1000 % 16;
-//			if (segNum > 9)
-//				segNum += 7;
-			led7seg_setChar(invertedChars[segNum], TRUE);
-			if ((segNum + 48 == '5' || segNum + 55 == 'A' || segNum + 55 == 'F')
+//			num = msTicks / 1000 % 16;
+//			if (num > 9)
+//				num += 7;
+//			led7seg_setChar(invertedChars[num], TRUE);
+			if ((num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')
 					&& sampleFlag == 0) {
 				sampleFlag = 1;
 				updateSensors();
 				updateOLED();
-				if (segNum + 48 == 'F') {
+				if (num + 55 == 'F') {
 					char str[30] = "";
 					sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
 							lightReading, xReading, yReading, zReading);
@@ -492,7 +521,7 @@ int main(void) {
 				}
 			}
 
-			if (!(segNum + 48 == '5' || segNum + 55 == 'A' || segNum + 55 == 'F')) {
+			if (!(num + 48 == '5' || num + 55 == 'A' || num + 55 == 'F')) {
 				sampleFlag = 0;
 			}
 
@@ -536,29 +565,6 @@ int main(void) {
 
 //			Timer0_Wait(1);
 		}
-
-		initStableMode();
-
-		while (monitorFlag == 0) {
-
-			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
-
-			if (sw4 == 1) {
-				sw4HoldStatus = 0;
-			}
-
-			if (sw4 == 0 && sw4HoldStatus == 0) {
-				monitorFlag = 1;
-				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				initMonitorOLED();
-				msTicks = 0;
-				swTicks = 0;
-				sw4HoldStatus = 1;
-			}
-		}
-		lightThresholdInit();
-		initTimer0Interrupt();
-		TIM_Cmd(LPC_TIM0,ENABLE);
 	}
 }
 
