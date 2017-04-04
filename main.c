@@ -39,9 +39,6 @@ int segNum = 0;
 int NNN = 0;
 int updateOledFlag = 0;
 int sendCemsFlag = 0;
-//centre of OLED
-//uint8_t xoled = 48;
-//uint8_t yoled = 32;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -63,10 +60,13 @@ void SysTick_Handler(void) {
 }
 
 void updateAccSensor() {
+	NVIC_DisableIRQ(EINT3_IRQn);
 	acc_read(&xReading, &yReading, &zReading);
+	NVIC_EnableIRQ(EINT3_IRQn);
 	xReading = xReading + xoff;
 	yReading = yReading + yoff;
 	zReading = zReading + zoff;
+
 }
 
 void updateTempSensor() {
@@ -299,12 +299,8 @@ void TIMER0_IRQHandler(void) {
 
 // EINT3 Interrupt Handler
 void EINT3_IRQHandler(void) {
-//	if (acc_getInt1Status()) {
-//		printf("Accelerometer detection \n");
-//		acc_clearIntStatus();
-//	}
-
-	if ((light_getIrqStatus())) {
+//	printf("Eint3 handler intterupt\n");
+	if (light_getIrqStatus()) {
 		if (lightLowWarning == 0) {
 //			printf("Low light conditions, %d\n", light_read());
 			lightLowWarning = 1;
@@ -318,8 +314,8 @@ void EINT3_IRQHandler(void) {
 		}
 		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 		light_clearIrqStatus();
+		NVIC_ClearPendingIRQ(EINT3_IRQn);
 	}
-	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
 void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
@@ -414,6 +410,7 @@ int main(void) {
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
+
 	int sw4HoldStatus = 0;
 	swTicks = msTicks;
 
@@ -432,8 +429,12 @@ int main(void) {
 
 //	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 //	NVIC_ClearPendingIRQ(EINT0_IRQn);
+
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
+	uint32_t ans, PG = 5, PP = 0b11, SP = 0b000;
+	ans = NVIC_EncodePriority(PG, PP, SP); // ans = 24 = 0x18
+	NVIC_SetPriority(EINT3_IRQn, ans);
 
 //	// Enable GPIO Interrupt P1.31
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 31;
@@ -490,8 +491,26 @@ int main(void) {
 		lightThresholdInit();
 		initTimer0Interrupt();
 		TIM_Cmd(LPC_TIM0, ENABLE);
-
+		uint32_t lastAccReadTicks = getMsTick();
 		while (monitorFlag == 1) {
+			if (sendCemsFlag == 1) {
+				char str[37] = "";
+				sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+						temperatureReading / 10.0, lightReading, xReading,
+						yReading, zReading);
+
+				if (fireAlert == 1) {
+					UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
+				}
+
+				if (moveInDarkAlert == 1) {
+					UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+				}
+
+				UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+
+				sendCemsFlag = 0;
+			}
 
 			if (updateOledFlag == 1) {
 				updateSensors();
@@ -504,9 +523,10 @@ int main(void) {
 			}
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
-				light_setHiThreshold(3891);
+//				if (getMsTick() > lastAccReadTicks + 500) {
+//					lastAccReadTicks = getMsTick();
 				updateAccSensor();
-				light_setHiThreshold(51);
+//				}
 				if (abs(xReading) > 96 || abs(yReading) > 96
 						|| abs(zReading) > 96) {
 					moveInDarkAlert = 1;
@@ -523,14 +543,14 @@ int main(void) {
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
-			if (sw4 == 1) {
-				sw4HoldStatus = 0;
-			}
-
 			if (sw4 == 0 && sw4HoldStatus == 0) {
 				swTicks = msTicks;
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
+			}
+
+			if (sw4 == 1) {
+				sw4HoldStatus = 0;
 			}
 
 //			Timer0_Wait(1);
