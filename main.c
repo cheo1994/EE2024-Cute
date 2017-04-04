@@ -470,7 +470,7 @@ int main(void) {
 				updateOLED();
 				if (segNum + 48 == 'F') {
 					char str[30] = "";
-					sprintf(str, "%d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
+					sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++, temperatureReading / 10.0,
 							lightReading, xReading, yReading, zReading);
 
 					if (fireAlert == 1) {
@@ -481,19 +481,19 @@ int main(void) {
 						UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
 					}
 
-					if (NNN < 10) {
-						char dataToSend[30] = "00";
-						strcat(dataToSend, str);
-						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
-					}
-					else if (NNN < 100){
-						char dataToSend[30] = "0";
-						strcat(dataToSend, str);
-						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
-					}
-					else {
-						UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
-					}
+//					if (NNN < 10) {
+//						char dataToSend[30] = "00";
+//						strcat(dataToSend, str);
+//						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
+//					}
+//					else if (NNN < 100){
+//						char dataToSend[30] = "0";
+//						strcat(dataToSend, str);
+//						UART_Send(LPC_UART3, (uint8_t *) dataToSend, strlen(dataToSend), BLOCKING);
+//					}
+//					else {
+//					}
+					UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
 				}
 			}
 
