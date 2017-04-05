@@ -39,6 +39,7 @@ int segNum = 0;
 int NNN = 0;
 int updateOledFlag = 0;
 int sendCemsFlag = 0;
+int sendHelpMsgFlag = 0;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -234,13 +235,16 @@ static void init_i2c(void) {
 static void init_GPIO(void) {
 	// Initialize sw3
 	PINSEL_CFG_Type PinCfg;
-	PinCfg.Funcnum = 0;
+	PinCfg.Funcnum = 1;
 	PinCfg.OpenDrain = 0;
 	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 0;
-	PinCfg.Pinnum = 4;
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 10;
 	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(0, 1 << 4, 0);
+//	GPIO_SetDir(2, 1 << 10, 0);
+//	LPC_GPIOINT ->IO2IntEnF |= 1 << 10; // Enable GPIO interrupt for sw3
+//	LPC_GPIOINT ->IO2IntClr |= 1 << 10;
+
 
 	// Initialize sw4
 	PinCfg.Funcnum = 0;
@@ -260,7 +264,7 @@ static void init_GPIO(void) {
 	PINSEL_ConfigPin(&PinCfg);
 	GPIO_SetDir(2, (1 << 5), 0);
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
-	LPC_GPIOINT ->IO2IntClr |= 1 << 5;
+	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 
 }
 
@@ -281,7 +285,7 @@ void TIMER0_IRQHandler(void) {
 
 // EINT3 Interrupt Handler
 void EINT3_IRQHandler(void) {
-//	printf("Eint3 handler intterupt\n");
+	printf("enter eint3 handler\n");
 	if (light_getIrqStatus()) {
 		if (lightLowWarning == 0) {
 //			printf("Low light conditions, %d\n", light_read());
@@ -387,6 +391,14 @@ void initTimer0Interrupt() {
 	NVIC_EnableIRQ(TIMER0_IRQn);
 }
 
+
+void EINT0_IRQHandler(void) {
+//	printf("eint0 handler \n");
+	sendHelpMsgFlag = 1;
+	LPC_SC->EXTINT = 1;
+	NVIC_ClearPendingIRQ(EINT0_IRQn);
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -410,18 +422,22 @@ int main(void) {
 	initAll();
 
 	// Enable GPIO Interrupt P2.10 (SW3)
-	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
+//	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
 
 	LPC_SC->EXTINT = 1;
+	LPC_SC->EXTMODE = 1;
+	LPC_SC->EXTPOLAR = 0;
 
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
+	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 0, 0));
 	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 
-	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
+
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	uint32_t ans, PG = 5, PP = 0b11, SP = 0b000;
 	ans = NVIC_EncodePriority(PG, PP, SP); // ans = 24 = 0x18
 	NVIC_SetPriority(EINT3_IRQn, ans);
+	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 
 //	// Enable GPIO Interrupt P1.31
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 31;
@@ -476,6 +492,8 @@ int main(void) {
 		lightThresholdInit();
 		initTimer0Interrupt();
 		TIM_Cmd(LPC_TIM0, ENABLE);
+		sendHelpMsgFlag = 0;
+
 		while (monitorFlag == 1) {
 			if (sendCemsFlag == 1) {
 				char str[37] = "";
@@ -520,6 +538,11 @@ int main(void) {
 
 			if (fireAlert == 1) {
 				blinkRedLed(msTicks, blinkRate);
+			}
+
+			if (sendHelpMsgFlag == 1) {
+				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n" , 19, BLOCKING);
+				sendHelpMsgFlag = 0;
 			}
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
