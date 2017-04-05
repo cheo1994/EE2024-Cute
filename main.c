@@ -430,7 +430,6 @@ void initTimer0Interrupt() {
 	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
 	timTimerCfg.PrescaleValue = 1000;
 	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timTimerCfg);
-	NVIC_SetPriority(TIMER0_IRQn, ((0x01 << 3) | 0x01));
 
 	NVIC_ClearPendingIRQ(TIMER0_IRQn);
 	NVIC_EnableIRQ(TIMER0_IRQn);
@@ -477,9 +476,7 @@ int main(void) {
 	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
-	uint32_t ans, PG = 5, PP = 0b11, SP = 0b000;
-	ans = NVIC_EncodePriority(PG, PP, SP); // ans = 24 = 0x18
-	NVIC_SetPriority(EINT3_IRQn, ans);
+	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 
 //	// Enable GPIO Interrupt P1.31
