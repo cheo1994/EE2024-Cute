@@ -33,6 +33,7 @@ int32_t temperatureReading;
 uint8_t lightLowWarning;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
+int ritInterruptEnabledFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
@@ -41,8 +42,7 @@ int NNN = 0;
 int updateOledFlag = 0;
 int sendCemsFlag = 0;
 int sendHelpMsgFlag = 0;
-int toggleBlinkRed = 0;
-int toggleBlinkBlue = 0;
+int toggleBlink = 0;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -316,20 +316,26 @@ void onBlueLed() {
 }
 
 void RIT_IRQHandler(void) {
-	if (toggleBlinkRed == 0 && fireAlert == 1) {
-		onRedLed();
-		toggleBlinkRed = 1;
-	} else if (toggleBlinkRed == 1 && fireAlert == 1) {
-		offRedLed();
-		toggleBlinkRed = 0;
-	}
 
-	if (toggleBlinkBlue == 0 && moveInDarkAlert == 1) {
-		onBlueLed();
-	} else if (toggleBlinkBlue == 1 && moveInDarkAlert == 1) {
-		offBlueLed();
-	}
+	if (toggleBlink == 0) {
+		if (fireAlert == 1) {
+			onRedLed();
+		}
 
+		if (moveInDarkAlert == 1) {
+			onBlueLed();
+		}
+		toggleBlink = 1;
+	}
+	else if (toggleBlink == 1) {
+		if (fireAlert == 1) {
+			offRedLed();
+		}
+		if (moveInDarkAlert == 1) {
+			offBlueLed();
+		}
+		toggleBlink = 0;
+	}
 	LPC_RIT ->RICTRL |= 0x1;
 	NVIC_ClearPendingIRQ(RIT_IRQn);
 }
@@ -375,22 +381,6 @@ void EINT3_IRQHandler(void) {
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
-void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
-	if ((msTicks / rate) % 2) {
-		GPIO_SetValue(0, (1 << 26));
-	} else {
-		GPIO_ClearValue(0, (1 << 26));
-	}
-}
-
-void blinkRedLed(volatile uint32_t msTicks, uint32_t rate) {
-	if ((msTicks / rate) % 2) {
-		GPIO_SetValue(2, 1);
-	} else {
-		GPIO_ClearValue(2, 1);
-	}
-}
-
 void lightThresholdInit() {
 	if (light_read() < 51) {
 		lightLowWarning = 1;
@@ -427,11 +417,13 @@ void prepareStableMode() {
 	GPIO_ClearValue(2, 1);
 	moveInDarkAlert = 0;
 	fireAlert = 0;
+	ritInterruptEnabledFlag = 0;
 	lightLowWarning = 0;
 	offBlueLed();
 	offRedLed();
 	segNum = 0;
 	TIM_Cmd(LPC_TIM0, DISABLE);
+	TIM_ResetCounter(LPC_TIM0);
 //	RIT_Cmd(LPC_RIT, DISABLE);
 	NVIC_DisableIRQ(RIT_IRQn);
 }
@@ -480,10 +472,6 @@ int main(void) {
 
 	int sw4HoldStatus = 0;
 	swTicks = msTicks;
-	int ritInterruptEnabledFlag = 0;
-	int sampleFlag = 0;
-	char num = 'A' - 55;
-	uint32_t blinkRate = 333;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
 	char* darknessMsg = "Movement in darkness was Detected.\r\n";
@@ -493,6 +481,8 @@ int main(void) {
 	int monitorMsgLen = strlen(monitorMsg);
 
 	initAll();
+	initRitInterrupt();
+	initTimer0Interrupt();
 
 	// Enable GPIO Interrupt P2.10 (SW3)
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
@@ -559,8 +549,6 @@ int main(void) {
 		}
 
 		lightThresholdInit();
-		initTimer0Interrupt();
-		initRitInterrupt();
 		TIM_Cmd(LPC_TIM0, ENABLE);
 		sendHelpMsgFlag = 0;
 
@@ -591,7 +579,7 @@ int main(void) {
 			}
 
 			if (fireAlert == 0 && temperatureReading > 290) {
-				printf("setting fireAlert = 1\n");
+//				printf("setting fireAlert = 1\n");
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
 					RIT_Cmd(LPC_RIT, ENABLE);
