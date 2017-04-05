@@ -77,7 +77,6 @@ void updateLightSensor() {
 	lightReading = light_read();
 }
 
-// This function updates the temperature reading, light reading and accelerometer readings
 static void updateSensors() {
 	updateLightSensor();
 	updateTempSensor();
@@ -233,7 +232,7 @@ static void init_i2c(void) {
 }
 
 static void init_GPIO(void) {
-	// Initialize button 3
+	// Initialize sw3
 	PINSEL_CFG_Type PinCfg;
 	PinCfg.Funcnum = 0;
 	PinCfg.OpenDrain = 0;
@@ -261,7 +260,7 @@ static void init_GPIO(void) {
 	PINSEL_ConfigPin(&PinCfg);
 	GPIO_SetDir(2, (1 << 5), 0);
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
-	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
+	LPC_GPIOINT ->IO2IntClr |= 1 << 5;
 
 }
 // EINT0 Interrupt Handler
