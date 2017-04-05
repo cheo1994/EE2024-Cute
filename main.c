@@ -49,6 +49,11 @@ uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
+int32_t temp_t1 = 0;
+int32_t temp_t2 = 0;
+int temp_count = 0;
+#define TEMP_SCALAR_DIV10 1
+#define TEMP_HALF_PERIODS 340
 //static char* msg = NULL;
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 */
@@ -71,9 +76,9 @@ void updateAccSensor() {
 
 }
 
-void updateTempSensor() {
-	temperatureReading = temp_read();
-}
+//void updateTempSensor() {
+//	temperatureReading = temp_read();
+//}
 
 void updateLightSensor() {
 	lightReading = light_read();
@@ -81,7 +86,7 @@ void updateLightSensor() {
 
 static void updateSensors() {
 	updateLightSensor();
-	updateTempSensor();
+//	updateTempSensor();
 	updateAccSensor();
 }
 
@@ -246,8 +251,7 @@ static void init_GPIO(void) {
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 10; // Enable GPIO interrupt for sw3
 //	LPC_GPIOINT ->IO2IntClr |= 1 << 10;
 
-
-	// Initialize sw4
+// Initialize sw4
 	PinCfg.Funcnum = 0;
 	PinCfg.OpenDrain = 0;
 	PinCfg.Pinmode = 0;
@@ -267,6 +271,16 @@ static void init_GPIO(void) {
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
 	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 
+	// Initialize P0.2
+	PinCfg.Funcnum = 0;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 2;
+	PINSEL_ConfigPin(&PinCfg);
+	GPIO_SetDir(0, (1 << 2), 0);
+	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
+	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 }
 
 void TIMER0_IRQHandler(void) {
@@ -289,7 +303,7 @@ void RIT_IRQHandler(void) {
 }
 
 void EINT3_IRQHandler(void) {
-	printf("enter eint3 handler\n");
+//	printf("enter eint3 handler\n");
 	if (light_getIrqStatus()) {
 		if (lightLowWarning == 0) {
 //			printf("Low light conditions, %d\n", light_read());
@@ -306,9 +320,27 @@ void EINT3_IRQHandler(void) {
 		light_clearIrqStatus();
 		NVIC_ClearPendingIRQ(EINT3_IRQn);
 	}
+	if ((LPC_GPIOINT ->IO0IntStatF >> 2) & 0x1) {
+		if (temp_t1 == 0 && temp_t2 == 0) {
+			temp_t1 = getMsTick();
+		} else if (temp_t1 != 0 && temp_t2 == 0) {
+			temp_count++;
+			if (temp_count == TEMP_HALF_PERIODS) {
+				temp_t2 = getMsTick();
+				if (temp_t2 > temp_t1) {
+					temp_t2 = temp_t2 - temp_t1;
+				} else {
+					temp_t2 = (0xFFFFFFFF - temp_t1 + 1) + temp_t2;
+				}
+				temperatureReading = ((2*1000*temp_t2) / (TEMP_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731);
+				temp_t1 = 0;
+				temp_t2 = 0;
+				temp_count = 0;
+			}
+		}
+		LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	}
 }
-
-
 
 void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
 	if ((msTicks / rate) % 2) {
@@ -377,12 +409,12 @@ void initStableMode() {
 	TIM_Cmd(LPC_TIM0, DISABLE);
 }
 
-void initRitInterrupt() {
-	RIT_Init(LPC_RIT);
-	RIT_CMP_VAL ritCmpValCfg;
-	ritCmpValCfg.CMPVAL = 0x000;
-	RIT_TimerConfig(LPC_RIT, ritCmpValCfg);
-}
+//void initRitInterrupt() {
+//	RIT_Init(LPC_RIT );
+//	RIT_CMP_VAL ritCmpValCfg;
+//	ritCmpValCfg.CMPVAL = 0x000;
+//	RIT_TimerConfig(LPC_RIT, ritCmpValCfg);
+//}
 
 void initTimer0Interrupt() {
 	TIM_MATCHCFG_Type timMatchCfg;
@@ -404,11 +436,10 @@ void initTimer0Interrupt() {
 	NVIC_EnableIRQ(TIMER0_IRQn);
 }
 
-
 void EINT0_IRQHandler(void) {
 //	printf("eint0 handler \n");
 	sendHelpMsgFlag = 1;
-	LPC_SC->EXTINT = 1;
+	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
 
@@ -437,14 +468,13 @@ int main(void) {
 	// Enable GPIO Interrupt P2.10 (SW3)
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
 
-	LPC_SC->EXTINT = 1;
-	LPC_SC->EXTMODE = 1;
-	LPC_SC->EXTPOLAR = 0;
+	LPC_SC ->EXTINT = 1;
+	LPC_SC ->EXTMODE = 1;
+	LPC_SC ->EXTPOLAR = 0;
 
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 0, 0));
 	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
-
 
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	uint32_t ans, PG = 5, PP = 0b11, SP = 0b000;
@@ -454,7 +484,6 @@ int main(void) {
 
 //	// Enable GPIO Interrupt P1.31
 //	LPC_GPIOINT ->IO2IntEnF |= 1 << 31;
-
 
 //	// Enable GPIO Interrupt P0.24 & P0.25 (SW5)
 //	LPC_GPIOINT ->IO0IntEnF |= 1 << 24;
@@ -554,7 +583,8 @@ int main(void) {
 			}
 
 			if (sendHelpMsgFlag == 1) {
-				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n" , 19, BLOCKING);
+				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
+						BLOCKING);
 				sendHelpMsgFlag = 0;
 			}
 
