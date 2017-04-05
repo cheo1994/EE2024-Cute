@@ -41,6 +41,8 @@ int NNN = 0;
 int updateOledFlag = 0;
 int sendCemsFlag = 0;
 int sendHelpMsgFlag = 0;
+int toggleBlinkRed = 0;
+int toggleBlinkBlue = 0;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -135,7 +137,6 @@ static void initMonitorOled() {
 	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
-// This function updates the OLED display of the sensor readings
 static void updateOled() {
 
 	char tempString[10] = "";
@@ -298,8 +299,39 @@ void TIMER0_IRQHandler(void) {
 	}
 }
 
-void RIT_IRQHandler(void) {
+void onRedLed() {
+	GPIO_SetValue(2, 1);
+}
 
+void offRedLed() {
+	GPIO_ClearValue(2, 1);
+}
+
+void offBlueLed() {
+	GPIO_ClearValue(0, (1 << 26));
+}
+
+void onBlueLed() {
+	GPIO_SetValue(0, (1 << 26));
+}
+
+void RIT_IRQHandler(void) {
+	if (toggleBlinkRed == 0 && fireAlert == 1) {
+		onRedLed();
+		toggleBlinkRed = 1;
+	} else if (toggleBlinkRed == 1 && fireAlert == 1) {
+		offRedLed();
+		toggleBlinkRed = 0;
+	}
+
+	if (toggleBlinkBlue == 0 && moveInDarkAlert == 1) {
+		onBlueLed();
+	} else if (toggleBlinkBlue == 1 && moveInDarkAlert == 1) {
+		offBlueLed();
+	}
+
+	LPC_RIT ->RICTRL |= 0x1;
+	NVIC_ClearPendingIRQ(RIT_IRQn);
 }
 
 void EINT3_IRQHandler(void) {
@@ -350,20 +382,12 @@ void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
 	}
 }
 
-void offBlueLed() {
-	GPIO_ClearValue(0, (1 << 26));
-}
-
 void blinkRedLed(volatile uint32_t msTicks, uint32_t rate) {
 	if ((msTicks / rate) % 2) {
 		GPIO_SetValue(2, 1);
 	} else {
 		GPIO_ClearValue(2, 1);
 	}
-}
-
-void offRedLed() {
-	GPIO_ClearValue(2, 1);
 }
 
 void lightThresholdInit() {
@@ -381,7 +405,7 @@ void initAll() {
 	init_i2c();
 	init_ssp();
 	init_GPIO();
-	pca9532_init();
+//	pca9532_init();
 	//	joystick_init();
 	acc_init();
 	//	acc_clearIntStatus();
@@ -396,7 +420,7 @@ void initAll() {
 	temp_init(getMsTick);
 }
 
-void initStableMode() {
+void prepareStableMode() {
 	oled_clearScreen(OLED_COLOR_BLACK);
 	led7seg_setChar(' ', FALSE);
 	GPIO_ClearValue(2, 1);
@@ -407,14 +431,19 @@ void initStableMode() {
 	offRedLed();
 	segNum = 0;
 	TIM_Cmd(LPC_TIM0, DISABLE);
+//	RIT_Cmd(LPC_RIT, DISABLE);
+	NVIC_DisableIRQ(RIT_IRQn);
 }
 
-//void initRitInterrupt() {
-//	RIT_Init(LPC_RIT );
+void initRitInterrupt() {
+	RIT_Init(LPC_RIT );
 //	RIT_CMP_VAL ritCmpValCfg;
-//	ritCmpValCfg.CMPVAL = 0x000;
-//	RIT_TimerConfig(LPC_RIT, ritCmpValCfg);
-//}
+//	ritCmpValCfg.CMPVAL = 0x7F0788;
+//	ritCmpValCfg.MASKVAL = 0x0;
+//	ritCmpValCfg.COUNTVAL = 0x0;
+//	RIT_TimerConfig(LPC_RIT, &ritCmpValCfg);
+	RIT_TimerClearCmd(LPC_RIT, ENABLE);
+}
 
 void initTimer0Interrupt() {
 	TIM_MATCHCFG_Type timMatchCfg;
@@ -450,7 +479,7 @@ int main(void) {
 
 	int sw4HoldStatus = 0;
 	swTicks = msTicks;
-
+	int ritInterruptEnabledFlag = 0;
 	int sampleFlag = 0;
 	char num = 'A' - 55;
 	uint32_t blinkRate = 333;
@@ -507,7 +536,7 @@ int main(void) {
 
 	while (1) {
 
-		initStableMode();
+		prepareStableMode();
 
 		while (monitorFlag == 0) {
 
@@ -530,6 +559,7 @@ int main(void) {
 
 		lightThresholdInit();
 		initTimer0Interrupt();
+		initRitInterrupt();
 		TIM_Cmd(LPC_TIM0, ENABLE);
 		sendHelpMsgFlag = 0;
 
@@ -560,7 +590,14 @@ int main(void) {
 			}
 
 			if (fireAlert == 0 && temperatureReading > 290) {
+				printf("setting fireAlert = 1\n");
 				fireAlert = 1;
+				if (ritInterruptEnabledFlag == 0) {
+					RIT_Cmd(LPC_RIT, ENABLE);
+					NVIC_ClearPendingIRQ(RIT_IRQn);
+					NVIC_EnableIRQ(RIT_IRQn);
+					ritInterruptEnabledFlag = 1;
+				}
 			}
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
@@ -568,16 +605,22 @@ int main(void) {
 				if (abs(xReading) > 96 || abs(yReading) > 96
 						|| abs(zReading) > 96) {
 					moveInDarkAlert = 1;
+					if (ritInterruptEnabledFlag == 0) {
+						RIT_Cmd(LPC_RIT, ENABLE);
+						NVIC_ClearPendingIRQ(RIT_IRQn);
+						NVIC_EnableIRQ(RIT_IRQn);
+						ritInterruptEnabledFlag = 1;
+					}
 				}
 			}
 
-			if (moveInDarkAlert == 1) {
-				blinkBlueLed(msTicks, blinkRate);
-			}
+//			if (moveInDarkAlert == 1) {
+//				blinkBlueLed(msTicks, blinkRate);
+//			}
 
-			if (fireAlert == 1) {
-				blinkRedLed(msTicks, blinkRate);
-			}
+//			if (fireAlert == 1) {
+//				blinkRedLed(msTicks, blinkRate);
+//			}
 
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
@@ -599,6 +642,8 @@ int main(void) {
 
 //			Timer0_Wait(1);
 		}
+		RIT_Cmd(LPC_RIT, DISABLE);
+
 	}
 }
 
