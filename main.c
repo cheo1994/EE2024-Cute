@@ -13,6 +13,7 @@
 #include "lpc17xx_i2c.h"
 #include "lpc17xx_ssp.h"
 #include "lpc17xx_timer.h"
+#include "lpc17xx_rit.h"
 #include "lpc17xx_uart.h"
 
 #include "joystick.h"
@@ -283,7 +284,10 @@ void TIMER0_IRQHandler(void) {
 	}
 }
 
-// EINT3 Interrupt Handler
+void RIT_IRQHandler(void) {
+
+}
+
 void EINT3_IRQHandler(void) {
 	printf("enter eint3 handler\n");
 	if (light_getIrqStatus()) {
@@ -303,6 +307,8 @@ void EINT3_IRQHandler(void) {
 		NVIC_ClearPendingIRQ(EINT3_IRQn);
 	}
 }
+
+
 
 void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
 	if ((msTicks / rate) % 2) {
@@ -369,6 +375,13 @@ void initStableMode() {
 	offRedLed();
 	segNum = 0;
 	TIM_Cmd(LPC_TIM0, DISABLE);
+}
+
+void initRitInterrupt() {
+	RIT_Init(LPC_RIT);
+	RIT_CMP_VAL ritCmpValCfg;
+	ritCmpValCfg.CMPVAL = 0x000;
+	RIT_TimerConfig(LPC_RIT, ritCmpValCfg);
 }
 
 void initTimer0Interrupt() {
