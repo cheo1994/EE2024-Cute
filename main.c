@@ -476,7 +476,6 @@ int main(void) {
 		lightThresholdInit();
 		initTimer0Interrupt();
 		TIM_Cmd(LPC_TIM0, ENABLE);
-		uint32_t lastAccReadTicks = getMsTick();
 		while (monitorFlag == 1) {
 			if (sendCemsFlag == 1) {
 				char str[37] = "";
@@ -508,10 +507,7 @@ int main(void) {
 			}
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
-//				if (getMsTick() > lastAccReadTicks + 500) {
-//					lastAccReadTicks = getMsTick();
 				updateAccSensor();
-//				}
 				if (abs(xReading) > 96 || abs(yReading) > 96
 						|| abs(zReading) > 96) {
 					moveInDarkAlert = 1;
