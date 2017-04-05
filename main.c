@@ -37,7 +37,7 @@ int ritInterruptEnabledFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
-int segNum = 0;
+volatile int segNum = 0;
 int NNN = 0;
 int updateOledFlag = 0;
 int sendCemsFlag = 0;
@@ -51,12 +51,6 @@ uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
-int32_t temp_t1 = 0;
-int32_t temp_t2 = 0;
-int temp_count = 0;
-#define TEMP_SCALAR_DIV10 1
-#define TEMP_HALF_PERIODS 340
-//static char* msg = NULL;
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 */
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
@@ -78,9 +72,9 @@ void updateAccSensor() {
 
 }
 
-//void updateTempSensor() {
-//	temperatureReading = temp_read();
-//}
+void updateTempSensor() {
+	temperatureReading = temp_read();
+}
 
 void updateLightSensor() {
 	lightReading = light_read();
@@ -88,7 +82,7 @@ void updateLightSensor() {
 
 static void updateSensors() {
 	updateLightSensor();
-//	updateTempSensor();
+	updateTempSensor();
 	updateAccSensor();
 }
 
@@ -272,16 +266,17 @@ static void init_GPIO(void) {
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
 	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 
-	// Initialize P0.2
-	PinCfg.Funcnum = 0;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 0;
-	PinCfg.Pinnum = 2;
-	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(0, (1 << 2), 0);
-	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
-	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+//	// Initialize P0.2
+//	PinCfg.Funcnum = 0;
+//	PinCfg.OpenDrain = 0;
+//	PinCfg.Pinmode = 0;
+//	PinCfg.Portnum = 0;
+//	PinCfg.Pinnum = 2;
+//	PINSEL_ConfigPin(&PinCfg);
+//	GPIO_SetDir(0, (1 << 2), 0);
+//	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
+//	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+
 }
 
 void TIMER0_IRQHandler(void) {
@@ -356,27 +351,6 @@ void EINT3_IRQHandler(void) {
 		}
 		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 		light_clearIrqStatus();
-	}
-	if ((LPC_GPIOINT ->IO0IntStatF >> 2) & 0x1 ||
-			((LPC_GPIOINT->IO0IntStatR >> 2) & 0x1)) {
-		if (temp_t1 == 0 && temp_t2 == 0) {
-			temp_t1 = getMsTick();
-		} else if (temp_t1 != 0 && temp_t2 == 0) {
-			temp_count++;
-			if (temp_count == TEMP_HALF_PERIODS) {
-				temp_t2 = getMsTick();
-				if (temp_t2 > temp_t1) {
-					temp_t2 = temp_t2 - temp_t1;
-				} else {
-					temp_t2 = (0xFFFFFFFF - temp_t1 + 1) + temp_t2;
-				}
-				temperatureReading = ((2*1000*temp_t2) / (TEMP_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731);
-				temp_t1 = 0;
-				temp_t2 = 0;
-				temp_count = 0;
-			}
-		}
-		LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 	}
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
@@ -471,7 +445,6 @@ int main(void) {
 	uint8_t sw4 = 1;
 
 	int sw4HoldStatus = 0;
-	swTicks = msTicks;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
 	char* darknessMsg = "Movement in darkness was Detected.\r\n";
@@ -492,7 +465,7 @@ int main(void) {
 	LPC_SC ->EXTPOLAR = 0;
 
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
-	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 0, 0));
+	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 2, 0));
 	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
@@ -542,8 +515,6 @@ int main(void) {
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 				initMonitorOled();
 				led7seg_setChar(invertedChars[0], TRUE);
-				msTicks = 0;
-				swTicks = 0;
 				sw4HoldStatus = 1;
 			}
 		}
@@ -620,7 +591,6 @@ int main(void) {
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
-				swTicks = msTicks;
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
 			}
