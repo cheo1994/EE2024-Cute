@@ -263,23 +263,6 @@ static void init_GPIO(void) {
 	LPC_GPIOINT ->IO2IntClr |= 1 << 5;
 
 }
-// EINT0 Interrupt Handler
-//void EINT0_IRQHandler(void) {
-//	if ((LPC_GPIOINT ->IO2IntStatF >> 10) & 0x1) {
-//		if (monitorFlag == 0) {
-//			printf("Entering MONITOR Mode.\r\n");
-//			monitorFlag = 1;
-//			msTicks = 0;
-//
-//		} else if (monitorFlag == 1) {
-//			printf("Entering STABLE Mode.\r\n");
-//			monitorFlag = 0;
-//		}
-//		LPC_GPIOINT ->IO2IntClr = 1 << 10;
-//	}
-//
-//	NVIC_ClearPendingIRQ(EINT0_IRQn);
-//}
 
 void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
