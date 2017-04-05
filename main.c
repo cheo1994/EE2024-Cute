@@ -350,9 +350,9 @@ void EINT3_IRQHandler(void) {
 		}
 		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 		light_clearIrqStatus();
-		NVIC_ClearPendingIRQ(EINT3_IRQn);
 	}
-	if ((LPC_GPIOINT ->IO0IntStatF >> 2) & 0x1) {
+	if ((LPC_GPIOINT ->IO0IntStatF >> 2) & 0x1 ||
+			((LPC_GPIOINT->IO0IntStatR >> 2) & 0x1)) {
 		if (temp_t1 == 0 && temp_t2 == 0) {
 			temp_t1 = getMsTick();
 		} else if (temp_t1 != 0 && temp_t2 == 0) {
@@ -372,6 +372,7 @@ void EINT3_IRQHandler(void) {
 		}
 		LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 	}
+	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
 void blinkBlueLed(volatile uint32_t msTicks, uint32_t rate) {
