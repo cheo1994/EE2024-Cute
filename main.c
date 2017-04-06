@@ -125,8 +125,8 @@ static void initMonitorOled() {
 }
 
 void initMonitor2Oled() {
-	oled_putString(0, 12, "Request help ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel request ", OLED_COLOR_WHITE,
+	oled_putString(0, 12, "Request", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE,
 			OLED_COLOR_BLACK);
 }
 
@@ -412,21 +412,22 @@ static void initAll() {
 }
 
 void prepareStableMode() {
-	oled_clearScreen(OLED_COLOR_BLACK);
-	led7seg_setChar(' ', FALSE);
-	GPIO_ClearValue(2, 1);
-	moveInDarkAlert = 0;
-	fireAlert = 0;
-	ritInterruptEnabledFlag = 0;
-	lightLowWarning = 0;
+	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
+	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
+	segNum = 0; 						//Reset the segnum count to 0
+	fireAlert = 0; 						//reset fire alert
+	ritInterruptEnabledFlag = 0; 		//turn off the RGB led
+	moveInDarkAlert = 0;				//Reset moving in dark flag
+	lightLowWarning = 0;				//Reset low light flag
 	offBlueLed();
 	offRedLed();
-	segNum = 0;
-	TIM_Cmd(LPC_TIM0, DISABLE);
-	TIM_ResetCounter(LPC_TIM0 );
-//	RIT_Cmd(LPC_RIT, DISABLE);
+	TIM_Cmd(LPC_TIM0, DISABLE); 		//Disables timer for 7Seg
+	TIM_ResetCounter(LPC_TIM0 );		//Resets the counter timer for 7seg
 	NVIC_DisableIRQ(RIT_IRQn);
+
+	//used for 2nd screen
 	currentScreen = 0;
+	oledUpdatedFlag = 0;
 }
 
 int main(void) {
@@ -449,9 +450,6 @@ int main(void) {
 	initRitInterrupt();
 	initTimer0Interrupt();
 
-	// Enable GPIO Interrupt P2.10 (SW3)
-//	LPC_GPIOINT ->IO2IntEnF |= 1 << 10;
-
 	LPC_SC ->EXTINT = 1;
 	LPC_SC ->EXTMODE = 1;
 	LPC_SC ->EXTPOLAR = 0;
@@ -464,27 +462,7 @@ int main(void) {
 	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 
-//	// Enable GPIO Interrupt P1.31
-//	LPC_GPIOINT ->IO2IntEnF |= 1 << 31;
-
-//	// Enable GPIO Interrupt P0.24 & P0.25 (SW5)
-//	LPC_GPIOINT ->IO0IntEnF |= 1 << 24;
-//	LPC_GPIOINT ->IO0IntEnF |= 1 << 25;
-
-//	//Accelerometer init
-//	PINSEL_CFG_Type PinCfg;
-//	PinCfg.Funcnum = 0;
-//	PinCfg.Pinnum = 3;
-//	PinCfg.Portnum = 0;
-//	PinCfg.Pinmode = 0;
-//	PinCfg.OpenDrain = 0;
-//	PINSEL_ConfigPin(&PinCfg);
-//	GPIO_SetDir(0, (1 << 3), 0);
-//	LPC_GPIOINT ->IO0IntEnF |= 1 << 3;
-
-	/*
-	 * Assume base board in zero-g position when reading first value.
-	 */
+	//Assume base board in zero-g position when reading first value.
 	acc_read(&xReading, &yReading, &zReading);
 	xoff = 0 - xReading;
 	yoff = 0 - yReading;
@@ -539,8 +517,8 @@ int main(void) {
 				updateSensors();
 				if (currentScreen == 0) {
 					updateOled();
-					oledUpdatedFlag = 1;
 				}
+				oledUpdatedFlag = 1;
 				updateOledFlag = 0;
 			}
 
@@ -573,33 +551,34 @@ int main(void) {
 				updateTempReadingFlag = 0;
 			}
 
-				joystickStatus = joystick_read();
-				if (joystickStatus == JOYSTICK_CENTER) {
-					printf("it is in the centre\n");
-				}
+			joystickStatus = joystick_read();
+			if (joystickStatus == JOYSTICK_CENTER) {
+				printf("it is in the centre\n");
+			}
 
-				if(joystickStatus != JOYSTICK_RIGHT && joystickStatus != JOYSTICK_LEFT) {
-					joystickHold = 0;
-				}
+			if (joystickStatus != JOYSTICK_RIGHT
+					&& joystickStatus != JOYSTICK_LEFT) {
+				joystickHold = 0;
+			}
 
-				if ((joystickStatus == JOYSTICK_RIGHT
-						|| joystickStatus == JOYSTICK_LEFT)
-						&& (joystickHold == 0)) {
-					printf("joystick moved left or right\n");
-					if (currentScreen == 0) {
-						oled_clearScreen(OLED_COLOR_BLACK);
-						initMonitor2Oled();
-						currentScreen = 1;
-					} else if (currentScreen == 1) {
-						oled_clearScreen(OLED_COLOR_BLACK);
-						initMonitorOled();
-						if (oledUpdatedFlag == 1) {
-							updateOled();
-						}
-						currentScreen = 0;
+			if ((joystickStatus == JOYSTICK_RIGHT
+					|| joystickStatus == JOYSTICK_LEFT)
+					&& (joystickHold == 0)) {
+//				printf("joystick moved left or right\n");
+				if (currentScreen == 0) {
+					oled_clearScreen(OLED_COLOR_BLACK);
+					initMonitor2Oled();
+					currentScreen = 1;
+				} else if (currentScreen == 1) {
+					oled_clearScreen(OLED_COLOR_BLACK);
+					initMonitorOled();
+					if (oledUpdatedFlag == 1) {
+						updateOled();
 					}
-					joystickHold = 1;
+					currentScreen = 0;
 				}
+				joystickHold = 1;
+			}
 
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
