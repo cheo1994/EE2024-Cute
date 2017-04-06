@@ -315,11 +315,8 @@ static void init_GPIO(void) {
 	PinCfg.Portnum = 2;
 	PinCfg.Pinnum = 10;
 	PINSEL_ConfigPin(&PinCfg);
-//	GPIO_SetDir(2, 1 << 10, 0);
-//	LPC_GPIOINT ->IO2IntEnF |= 1 << 10; // Enable GPIO interrupt for sw3
-//	LPC_GPIOINT ->IO2IntClr |= 1 << 10;
 
-// Initialize sw4
+	// Initialize sw4
 	PinCfg.Funcnum = 0;
 	PinCfg.OpenDrain = 0;
 	PinCfg.Pinmode = 0;
