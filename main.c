@@ -31,6 +31,7 @@ volatile uint32_t swTicks;
 volatile int monitorFlag = 0;
 uint32_t lightReading = 1;
 int32_t temperatureReading;
+volatile int updateTempReadingFlag = 0;
 uint8_t lightLowWarning;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
@@ -38,12 +39,14 @@ int ritInterruptEnabledFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
-volatile int segNum = 0;
 int NNN = 0;
-int updateOledFlag = 0;
-int sendCemsFlag = 0;
-int sendHelpMsgFlag = 0;
-int toggleBlink = 0;
+volatile int segNum = 0;
+volatile int updateOledFlag = 0;
+volatile int sendCemsFlag = 0;
+volatile int sendHelpMsgFlag = 0;
+volatile int toggleBlink = 0;
+int currentScreen = 0;
+int oledUpdatedFlag = 0;
 uint8_t* light_buffer[15];
 uint8_t* temp_buffer[15];
 uint8_t* x_buffer[15];
@@ -57,7 +60,6 @@ static uint8_t invertedChars[] = {
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
 /* A - F */
 0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA };
-
 
 void updateAccSensor() {
 	NVIC_DisableIRQ(EINT3_IRQn);
@@ -122,9 +124,10 @@ static void initMonitorOled() {
 	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
-void initSendMode() {
+void initMonitor2Oled() {
 	oled_putString(0, 12, "Request help ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel request ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel request ", OLED_COLOR_WHITE,
+			OLED_COLOR_BLACK);
 }
 
 static void updateOled() {
@@ -230,8 +233,9 @@ void EINT3_IRQHandler(void) {
 }
 void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
-		segNum = ++segNum % 16;
+		segNum = (++segNum) % 16;
 		led7seg_setChar(invertedChars[segNum], TRUE);
+		updateTempReadingFlag = 1;
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
 			updateOledFlag = 1;
 			if (segNum == 15) {
@@ -348,7 +352,7 @@ static void init_GPIO(void) {
 //	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 
 }
-void init_uart(void) {
+static void init_uart(void) {
 	UART_CFG_Type uartCfg;
 	uartCfg.Baud_rate = 115200;
 	uartCfg.Databits = UART_DATABIT_8;
@@ -361,17 +365,17 @@ void init_uart(void) {
 	//enable transmit for uart3
 	UART_TxCmd(LPC_UART3, ENABLE);
 }
-void initRitInterrupt() {
+static void initRitInterrupt() {
 	RIT_Init(LPC_RIT );
 	RIT_TimerClearCmd(LPC_RIT, ENABLE);
 }
-void initUart3Interrupt() {
+static void initUart3Interrupt() {
 	// enable UART interrupts to send/receive
-	LPC_UART3->IER |= UART_IER_RBRINT_EN;
-	LPC_UART3->IER |= UART_IER_THREINT_EN;
+	LPC_UART3 ->IER |= UART_IER_RBRINT_EN;
+	LPC_UART3 ->IER |= UART_IER_THREINT_EN;
 	NVIC_EnableIRQ(UART3_IRQn);
 }
-void initTimer0Interrupt() {
+static void initTimer0Interrupt() {
 	TIM_MATCHCFG_Type timMatchCfg;
 	timMatchCfg.MatchChannel = 0;
 	timMatchCfg.IntOnMatch = 1;
@@ -389,7 +393,7 @@ void initTimer0Interrupt() {
 	NVIC_ClearPendingIRQ(TIMER0_IRQn);
 	NVIC_EnableIRQ(TIMER0_IRQn);
 }
-void initAll() {
+static void initAll() {
 	init_i2c();
 	init_ssp();
 	init_GPIO();
@@ -422,6 +426,7 @@ void prepareStableMode() {
 	TIM_ResetCounter(LPC_TIM0 );
 //	RIT_Cmd(LPC_RIT, DISABLE);
 	NVIC_DisableIRQ(RIT_IRQn);
+	currentScreen = 0;
 }
 
 int main(void) {
@@ -431,6 +436,7 @@ int main(void) {
 	uint8_t sw4 = 1;
 	uint8_t joystickStatus = JOYSTICK_CENTER;
 	int sw4HoldStatus = 0;
+	int joystickHold = 0;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
 	char* darknessMsg = "Movement in darkness was Detected.\r\n";
@@ -509,7 +515,6 @@ int main(void) {
 			}
 		}
 
-
 		while (monitorFlag == 1) {
 			if (sendCemsFlag == 1) {
 				char str[37] = "";
@@ -532,7 +537,10 @@ int main(void) {
 
 			if (updateOledFlag == 1) {
 				updateSensors();
-				updateOled();
+				if (currentScreen == 0) {
+					updateOled();
+					oledUpdatedFlag = 1;
+				}
 				updateOledFlag = 0;
 			}
 
@@ -559,10 +567,39 @@ int main(void) {
 					}
 				}
 			}
-			joystickStatus = joystick_read();
-			if (joystickStatus == JOYSTICK_RIGHT || joystickStatus == JOYSTICK_LEFT) {
-				printf("joystick moved left or right\n");
+
+			if (updateTempReadingFlag == 1) {
+				updateTempSensor();
+				updateTempReadingFlag = 0;
 			}
+
+				joystickStatus = joystick_read();
+				if (joystickStatus == JOYSTICK_CENTER) {
+					printf("it is in the centre\n");
+				}
+
+				if(joystickStatus != JOYSTICK_RIGHT && joystickStatus != JOYSTICK_LEFT) {
+					joystickHold = 0;
+				}
+
+				if ((joystickStatus == JOYSTICK_RIGHT
+						|| joystickStatus == JOYSTICK_LEFT)
+						&& (joystickHold == 0)) {
+					printf("joystick moved left or right\n");
+					if (currentScreen == 0) {
+						oled_clearScreen(OLED_COLOR_BLACK);
+						initMonitor2Oled();
+						currentScreen = 1;
+					} else if (currentScreen == 1) {
+						oled_clearScreen(OLED_COLOR_BLACK);
+						initMonitorOled();
+						if (oledUpdatedFlag == 1) {
+							updateOled();
+						}
+						currentScreen = 0;
+					}
+					joystickHold = 1;
+				}
 
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
