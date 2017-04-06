@@ -398,7 +398,6 @@ void initAll() {
 //	pca9532_init();
 	//	joystick_init();
 	acc_init();
-	//	acc_clearIntStatus();
 	oled_init();
 	led7seg_init();
 	rgb_init();
