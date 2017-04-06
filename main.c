@@ -15,6 +15,7 @@
 #include "lpc17xx_timer.h"
 #include "lpc17xx_rit.h"
 #include "lpc17xx_uart.h"
+#include "joystick.h"
 
 #include "joystick.h"
 #include "pca9532.h"
@@ -396,7 +397,7 @@ void initAll() {
 	init_ssp();
 	init_GPIO();
 //	pca9532_init();
-	//	joystick_init();
+	joystick_init();
 	acc_init();
 	oled_init();
 	led7seg_init();
@@ -431,7 +432,7 @@ int main(void) {
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
-
+	uint8_t joystickStatus = JOYSTICK_CENTER;
 	int sw4HoldStatus = 0;
 
 	char* monitorMsg = "Entering MONITOR Mode.\r\n";
@@ -560,6 +561,10 @@ int main(void) {
 						ritInterruptEnabledFlag = 1;
 					}
 				}
+			}
+			joystickStatus = joystick_read();
+			if (joystickStatus == JOYSTICK_RIGHT || joystickStatus == JOYSTICK_LEFT) {
+				printf("joystick moved left or right\n");
 			}
 
 			if (sendHelpMsgFlag == 1) {
