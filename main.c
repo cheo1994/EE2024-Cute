@@ -57,10 +57,6 @@ static uint8_t invertedChars[] = {
 /* A - F */
 0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA };
 
-// This function is called every 1us
-void SysTick_Handler(void) {
-	msTicks++;
-}
 
 void updateAccSensor() {
 	NVIC_DisableIRQ(EINT3_IRQn);
@@ -96,12 +92,6 @@ void lightReadToString(char *str) {
 	char lightBuffer[9] = "";
 	sprintf(lightBuffer, "%4d", lightReading);
 	strcat(str, lightBuffer);
-//	if (lightReading < 10)
-//		strcat(str, "    ");
-//	else if (lightReading < 100)
-//		strcat(str, "  ");
-//	else if (lightReading < 1000)
-//		strcat(str, " ");
 }
 
 void accReadToString(char* xStr, char* yStr, char* zStr) {
@@ -129,6 +119,11 @@ static void initMonitorOled() {
 	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void initSendMode() {
+	oled_putString(0, 12, "Request help ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel request ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 static void updateOled() {
@@ -165,18 +160,97 @@ void pinsel_uart3(void) {
 	PINSEL_ConfigPin(&PinCfg);
 }
 
-void init_uart(void) {
-	UART_CFG_Type uartCfg;
-	uartCfg.Baud_rate = 115200;
-	uartCfg.Databits = UART_DATABIT_8;
-	uartCfg.Parity = UART_PARITY_NONE;
-	uartCfg.Stopbits = UART_STOPBIT_1;
-	//pin select for uart3;
-	pinsel_uart3();
-	//supply power & setup working parameters for uart3
-	UART_Init(LPC_UART3, &uartCfg);
-	//enable transmit for uart3
-	UART_TxCmd(LPC_UART3, ENABLE);
+void onRedLed() {
+	GPIO_SetValue(2, 1);
+}
+
+void offRedLed() {
+	GPIO_ClearValue(2, 1);
+}
+
+void offBlueLed() {
+	GPIO_ClearValue(0, (1 << 26));
+}
+
+void onBlueLed() {
+	GPIO_SetValue(0, (1 << 26));
+}
+
+void SysTick_Handler(void) {
+	msTicks++;
+}
+void RIT_IRQHandler(void) {
+
+	if (toggleBlink == 0) {
+		if (fireAlert == 1) {
+			onRedLed();
+		}
+
+		if (moveInDarkAlert == 1) {
+			onBlueLed();
+		}
+		toggleBlink = 1;
+	} else if (toggleBlink == 1) {
+		if (fireAlert == 1) {
+			offRedLed();
+		}
+		if (moveInDarkAlert == 1) {
+			offBlueLed();
+		}
+		toggleBlink = 0;
+	}
+	LPC_RIT ->RICTRL |= 0x1;
+	NVIC_ClearPendingIRQ(RIT_IRQn);
+}
+void EINT0_IRQHandler(void) {
+//	printf("eint0 handler \n");
+	sendHelpMsgFlag = 1;
+	LPC_SC ->EXTINT = 1;
+	NVIC_ClearPendingIRQ(EINT0_IRQn);
+}
+void EINT3_IRQHandler(void) {
+//	printf("enter eint3 handler\n");
+	if (light_getIrqStatus()) {
+		if (lightLowWarning == 0) {
+//			printf("Low light conditions, %d\n", light_read());
+			lightLowWarning = 1;
+			light_setLoThreshold(0);
+			light_setHiThreshold(51);
+		} else if (lightLowWarning == 1) {
+//			printf("Safe light conditions, %d\n", light_read());
+			lightLowWarning = 0;
+			light_setHiThreshold(3891);
+			light_setLoThreshold(50);
+		}
+		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
+		light_clearIrqStatus();
+	}
+	NVIC_ClearPendingIRQ(EINT3_IRQn);
+}
+void TIMER0_IRQHandler(void) {
+	if (LPC_TIM0 ->IR & (1 << 0)) {
+		segNum = ++segNum % 16;
+		led7seg_setChar(invertedChars[segNum], TRUE);
+		if (segNum == 5 || segNum == 10 || segNum == 15) {
+			updateOledFlag = 1;
+			if (segNum == 15) {
+				sendCemsFlag = 1;
+			}
+		}
+		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+		NVIC_ClearPendingIRQ(TIMER0_IRQn);
+	}
+}
+
+void lightThresholdInit() {
+	if (light_read() < 51) {
+		lightLowWarning = 1;
+		light_setLoThreshold(0);
+		light_setHiThreshold(51);
+	} else {
+		lightLowWarning = 0;
+		light_setLoThreshold(50);
+	}
 }
 
 static void init_ssp(void) {
@@ -214,7 +288,6 @@ static void init_ssp(void) {
 	SSP_Cmd(LPC_SSP1, ENABLE);
 
 }
-
 static void init_i2c(void) {
 	PINSEL_CFG_Type PinCfg;
 
@@ -232,7 +305,6 @@ static void init_i2c(void) {
 	/* Enable I2C1 operation */
 	I2C_Cmd(LPC_I2C2, ENABLE);
 }
-
 static void init_GPIO(void) {
 	// Initialize sw3
 	PINSEL_CFG_Type PinCfg;
@@ -278,94 +350,47 @@ static void init_GPIO(void) {
 //	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 
 }
-
-void TIMER0_IRQHandler(void) {
-	if (LPC_TIM0 ->IR & (1 << 0)) {
-		segNum = ++segNum % 16;
-		led7seg_setChar(invertedChars[segNum], TRUE);
-		if (segNum == 5 || segNum == 10 || segNum == 15) {
-			updateOledFlag = 1;
-			if (segNum == 15) {
-				sendCemsFlag = 1;
-			}
-		}
-		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
-		NVIC_ClearPendingIRQ(TIMER0_IRQn);
-	}
+void init_uart(void) {
+	UART_CFG_Type uartCfg;
+	uartCfg.Baud_rate = 115200;
+	uartCfg.Databits = UART_DATABIT_8;
+	uartCfg.Parity = UART_PARITY_NONE;
+	uartCfg.Stopbits = UART_STOPBIT_1;
+	//pin select for uart3;
+	pinsel_uart3();
+	//supply power & setup working parameters for uart3
+	UART_Init(LPC_UART3, &uartCfg);
+	//enable transmit for uart3
+	UART_TxCmd(LPC_UART3, ENABLE);
 }
-
-void onRedLed() {
-	GPIO_SetValue(2, 1);
+void initRitInterrupt() {
+	RIT_Init(LPC_RIT );
+	RIT_TimerClearCmd(LPC_RIT, ENABLE);
 }
-
-void offRedLed() {
-	GPIO_ClearValue(2, 1);
+void initUart3Interrupt() {
+	// enable UART interrupts to send/receive
+	LPC_UART3->IER |= UART_IER_RBRINT_EN;
+	LPC_UART3->IER |= UART_IER_THREINT_EN;
+	NVIC_EnableIRQ(UART3_IRQn);
 }
+void initTimer0Interrupt() {
+	TIM_MATCHCFG_Type timMatchCfg;
+	timMatchCfg.MatchChannel = 0;
+	timMatchCfg.IntOnMatch = 1;
+	timMatchCfg.StopOnMatch = 0;
+	timMatchCfg.ResetOnMatch = 1;
+	timMatchCfg.ExtMatchOutputType = 0;
+	timMatchCfg.MatchValue = 1000;
+	TIM_ConfigMatch(LPC_TIM0, &timMatchCfg);
 
-void offBlueLed() {
-	GPIO_ClearValue(0, (1 << 26));
+	TIM_TIMERCFG_Type timTimerCfg;
+	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
+	timTimerCfg.PrescaleValue = 1000;
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timTimerCfg);
+
+	NVIC_ClearPendingIRQ(TIMER0_IRQn);
+	NVIC_EnableIRQ(TIMER0_IRQn);
 }
-
-void onBlueLed() {
-	GPIO_SetValue(0, (1 << 26));
-}
-
-void RIT_IRQHandler(void) {
-
-	if (toggleBlink == 0) {
-		if (fireAlert == 1) {
-			onRedLed();
-		}
-
-		if (moveInDarkAlert == 1) {
-			onBlueLed();
-		}
-		toggleBlink = 1;
-	}
-	else if (toggleBlink == 1) {
-		if (fireAlert == 1) {
-			offRedLed();
-		}
-		if (moveInDarkAlert == 1) {
-			offBlueLed();
-		}
-		toggleBlink = 0;
-	}
-	LPC_RIT ->RICTRL |= 0x1;
-	NVIC_ClearPendingIRQ(RIT_IRQn);
-}
-
-void EINT3_IRQHandler(void) {
-//	printf("enter eint3 handler\n");
-	if (light_getIrqStatus()) {
-		if (lightLowWarning == 0) {
-//			printf("Low light conditions, %d\n", light_read());
-			lightLowWarning = 1;
-			light_setLoThreshold(0);
-			light_setHiThreshold(51);
-		} else if (lightLowWarning == 1) {
-//			printf("Safe light conditions, %d\n", light_read());
-			lightLowWarning = 0;
-			light_setHiThreshold(3891);
-			light_setLoThreshold(50);
-		}
-		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
-		light_clearIrqStatus();
-	}
-	NVIC_ClearPendingIRQ(EINT3_IRQn);
-}
-
-void lightThresholdInit() {
-	if (light_read() < 51) {
-		lightLowWarning = 1;
-		light_setLoThreshold(0);
-		light_setHiThreshold(51);
-	} else {
-		lightLowWarning = 0;
-		light_setLoThreshold(50);
-	}
-}
-
 void initAll() {
 	init_i2c();
 	init_ssp();
@@ -397,45 +422,9 @@ void prepareStableMode() {
 	offRedLed();
 	segNum = 0;
 	TIM_Cmd(LPC_TIM0, DISABLE);
-	TIM_ResetCounter(LPC_TIM0);
+	TIM_ResetCounter(LPC_TIM0 );
 //	RIT_Cmd(LPC_RIT, DISABLE);
 	NVIC_DisableIRQ(RIT_IRQn);
-}
-
-void initRitInterrupt() {
-	RIT_Init(LPC_RIT );
-//	RIT_CMP_VAL ritCmpValCfg;
-//	ritCmpValCfg.CMPVAL = 0x7F0788;
-//	ritCmpValCfg.MASKVAL = 0x0;
-//	ritCmpValCfg.COUNTVAL = 0x0;
-//	RIT_TimerConfig(LPC_RIT, &ritCmpValCfg);
-	RIT_TimerClearCmd(LPC_RIT, ENABLE);
-}
-
-void initTimer0Interrupt() {
-	TIM_MATCHCFG_Type timMatchCfg;
-	timMatchCfg.MatchChannel = 0;
-	timMatchCfg.IntOnMatch = 1;
-	timMatchCfg.StopOnMatch = 0;
-	timMatchCfg.ResetOnMatch = 1;
-	timMatchCfg.ExtMatchOutputType = 0;
-	timMatchCfg.MatchValue = 1000;
-	TIM_ConfigMatch(LPC_TIM0, &timMatchCfg);
-
-	TIM_TIMERCFG_Type timTimerCfg;
-	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
-	timTimerCfg.PrescaleValue = 1000;
-	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timTimerCfg);
-
-	NVIC_ClearPendingIRQ(TIMER0_IRQn);
-	NVIC_EnableIRQ(TIMER0_IRQn);
-}
-
-void EINT0_IRQHandler(void) {
-//	printf("eint0 handler \n");
-	sendHelpMsgFlag = 1;
-	LPC_SC ->EXTINT = 1;
-	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
 
 int main(void) {
@@ -516,12 +505,13 @@ int main(void) {
 				initMonitorOled();
 				led7seg_setChar(invertedChars[0], TRUE);
 				sw4HoldStatus = 1;
+				updateSensors();
+				lightThresholdInit();
+				TIM_Cmd(LPC_TIM0, ENABLE);
+				sendHelpMsgFlag = 0;
 			}
 		}
 
-		lightThresholdInit();
-		TIM_Cmd(LPC_TIM0, ENABLE);
-		sendHelpMsgFlag = 0;
 
 		while (monitorFlag == 1) {
 			if (sendCemsFlag == 1) {
@@ -550,7 +540,6 @@ int main(void) {
 			}
 
 			if (fireAlert == 0 && temperatureReading > 290) {
-//				printf("setting fireAlert = 1\n");
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
 					RIT_Cmd(LPC_RIT, ENABLE);
@@ -574,14 +563,6 @@ int main(void) {
 				}
 			}
 
-//			if (moveInDarkAlert == 1) {
-//				blinkBlueLed(msTicks, blinkRate);
-//			}
-
-//			if (fireAlert == 1) {
-//				blinkRedLed(msTicks, blinkRate);
-//			}
-
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
 						BLOCKING);
@@ -593,6 +574,7 @@ int main(void) {
 			if (sw4 == 0 && sw4HoldStatus == 0) {
 				monitorFlag = 0;
 				sw4HoldStatus = 1;
+				RIT_Cmd(LPC_RIT, DISABLE);
 			}
 
 			if (sw4 == 1) {
@@ -601,7 +583,6 @@ int main(void) {
 
 //			Timer0_Wait(1);
 		}
-		RIT_Cmd(LPC_RIT, DISABLE);
 
 	}
 }
