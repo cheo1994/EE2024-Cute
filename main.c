@@ -40,7 +40,7 @@ int8_t xReading;
 int8_t yReading;
 int8_t zReading;
 int NNN = 0;
-volatile int segNum = 0;
+int segNum = 0;
 volatile int updateOledFlag = 0;
 volatile int sendCemsFlag = 0;
 volatile int sendHelpMsgFlag = 0;
@@ -126,8 +126,7 @@ static void initMonitorOled() {
 
 void initMonitor2Oled() {
 	oled_putString(0, 12, "Request", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 static void updateOled() {
@@ -235,12 +234,13 @@ void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
 		led7seg_setChar(invertedChars[segNum], TRUE);
-		updateTempReadingFlag = 1;
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
 			updateOledFlag = 1;
 			if (segNum == 15) {
 				sendCemsFlag = 1;
 			}
+		} else {
+			updateTempReadingFlag = 1;
 		}
 		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 		NVIC_ClearPendingIRQ(TIMER0_IRQn);
@@ -483,13 +483,13 @@ int main(void) {
 			if (sw4 == 0 && sw4HoldStatus == 0) {
 				monitorFlag = 1;
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				initMonitorOled();
-				led7seg_setChar(invertedChars[0], TRUE);
 				sw4HoldStatus = 1;
+				sendHelpMsgFlag = 0;
+				initMonitorOled();
+				TIM_Cmd(LPC_TIM0, ENABLE);
+				led7seg_setChar(invertedChars[0], TRUE);
 				updateSensors();
 				lightThresholdInit();
-				TIM_Cmd(LPC_TIM0, ENABLE);
-				sendHelpMsgFlag = 0;
 			}
 		}
 
@@ -551,34 +551,34 @@ int main(void) {
 				updateTempReadingFlag = 0;
 			}
 
-			joystickStatus = joystick_read();
-			if (joystickStatus == JOYSTICK_CENTER) {
-				printf("it is in the centre\n");
-			}
-
-			if (joystickStatus != JOYSTICK_RIGHT
-					&& joystickStatus != JOYSTICK_LEFT) {
-				joystickHold = 0;
-			}
-
-			if ((joystickStatus == JOYSTICK_RIGHT
-					|| joystickStatus == JOYSTICK_LEFT)
-					&& (joystickHold == 0)) {
-//				printf("joystick moved left or right\n");
-				if (currentScreen == 0) {
-					oled_clearScreen(OLED_COLOR_BLACK);
-					initMonitor2Oled();
-					currentScreen = 1;
-				} else if (currentScreen == 1) {
-					oled_clearScreen(OLED_COLOR_BLACK);
-					initMonitorOled();
-					if (oledUpdatedFlag == 1) {
-						updateOled();
-					}
-					currentScreen = 0;
-				}
-				joystickHold = 1;
-			}
+//			joystickStatus = joystick_read();
+//			if (joystickStatus == JOYSTICK_CENTER) {
+////				printf("it is in the centre\n");
+//			}
+//
+//			if (joystickStatus != JOYSTICK_RIGHT
+//					&& joystickStatus != JOYSTICK_LEFT) {
+//				joystickHold = 0;
+//			}
+//
+//			if ((joystickHold == 0) &&
+//					(joystickStatus == JOYSTICK_RIGHT
+//					|| joystickStatus == JOYSTICK_LEFT)) {
+////				printf("joystick moved left or right\n");
+//				if (currentScreen == 0) {
+//					oled_clearScreen(OLED_COLOR_BLACK);
+//					initMonitor2Oled();
+//					currentScreen = 1;
+//				} else if (currentScreen == 1) {
+//					oled_clearScreen(OLED_COLOR_BLACK);
+//					initMonitorOled();
+//					if (oledUpdatedFlag == 1) {
+//						updateOled();
+//					}
+//					currentScreen = 0;
+//				}
+//				joystickHold = 1;
+//			}
 
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
