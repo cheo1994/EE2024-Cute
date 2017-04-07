@@ -481,6 +481,10 @@ void initBoardPosition() {
 	zoff = 64 - zReading;
 }
 
+int checkForMovement(int8_t xReading, int8_t yReading, int8_t zReading) {
+	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -560,8 +564,7 @@ int main(void) {
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
 				updateAccSensor();
-				if (abs(xReading) > 96 || abs(yReading) > 96
-						|| abs(zReading) > 96) {
+				if (checkForMovement()) {
 					moveInDarkAlert = 1;
 					if (ritInterruptEnabledFlag == 0) {
 						enableRitRGBinterrupt();
