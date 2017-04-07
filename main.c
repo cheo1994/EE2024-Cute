@@ -232,15 +232,15 @@ void EINT3_IRQHandler(void) {
 void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
-		led7seg_setChar(invertedChars[segNum], TRUE);
+//		led7seg_setChar(invertedChars[segNum], TRUE);
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
-			updateOledFlag = 1;
+			updateOledFlag = 2;
 			if (segNum == 15) {
 				sendCemsFlag = 1;
 			}
 		} else {
-			updateTempReadingFlag = 1;
 		}
+		updateTempReadingFlag = 1;
 		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 		NVIC_ClearPendingIRQ(TIMER0_IRQn);
 	}
@@ -515,17 +515,21 @@ int main(void) {
 			if (updateTempReadingFlag == 1) {
 				updateTempSensor();
 				updateTempReadingFlag = 0;
+				if (updateOledFlag == 2) {
+					updateOledFlag = 1;
+				}
+				led7seg_setChar(invertedChars[segNum], TRUE);
 			}
-
 			if (updateOledFlag == 1) {
 				updateSensors();
-				updateTempReadingFlag = 1;
+//				updateTempReadingFlag = 1;
 				if (currentScreen == 0) {
 					updateOled();
 				}
 				oledUpdatedFlag = 1;
 				updateOledFlag = 0;
 			}
+
 
 			if (fireAlert == 0 && temperatureReading > 250) {
 				fireAlert = 1;
@@ -558,9 +562,9 @@ int main(void) {
 				joystickHold = 0;
 			}
 
-			if ((joystickHold == 0) &&
-					(joystickStatus == JOYSTICK_RIGHT
-					|| joystickStatus == JOYSTICK_LEFT)) {
+			if ((joystickHold == 0)
+					&& (joystickStatus == JOYSTICK_RIGHT
+							|| joystickStatus == JOYSTICK_LEFT)) {
 //				printf("joystick moved left or right\n");
 				if (currentScreen == 0) {
 					oled_clearScreen(OLED_COLOR_BLACK);
