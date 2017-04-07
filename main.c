@@ -627,7 +627,7 @@ int main(void) {
 						BLOCKING);
 				sendHelpMsgFlag = 0;
 			} else if (cancelHelpMsgFlag == 1) {
-				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 19,
+				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 22,
 						BLOCKING);
 				cancelHelpMsgFlag = 0;
 			}
