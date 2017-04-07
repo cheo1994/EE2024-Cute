@@ -183,7 +183,6 @@ void SysTick_Handler(void) {
 	msTicks++;
 }
 void RIT_IRQHandler(void) {
-
 	if (toggleBlink == 0) {
 		if (fireAlert == 1) {
 			onRedLed();
@@ -435,7 +434,7 @@ int main(void) {
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
-	uint8_t joystickStatus = JOYSTICK_CENTER;
+	uint8_t joystickStatus;
 	int sw4HoldStatus = 0;
 	int joystickHold = 0;
 
@@ -552,9 +551,6 @@ int main(void) {
 			}
 
 			joystickStatus = joystick_read();
-			if (joystickStatus == JOYSTICK_CENTER) {
-//				printf("it is in the centre\n");
-			}
 
 			if (joystickStatus != JOYSTICK_RIGHT
 					&& joystickStatus != JOYSTICK_LEFT) {
