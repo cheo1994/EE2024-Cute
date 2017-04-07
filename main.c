@@ -90,7 +90,7 @@ void updateLightSensor() {
 
 static void updateSensors() {
 	updateLightSensor();
-	updateTempSensor();
+//	updateTempSensor();
 	updateAccSensor();
 }
 
@@ -527,8 +527,14 @@ int main(void) {
 		while (monitorFlag == 1) {
 			sendCemsMessages();
 
+			if (updateTempReadingFlag == 1) {
+				updateTempSensor();
+				updateTempReadingFlag = 0;
+			}
+
 			if (updateOledFlag == 1) {
 				updateSensors();
+				updateTempReadingFlag = 1;
 				if (currentScreen == 0) {
 					updateOled();
 				}
@@ -554,11 +560,6 @@ int main(void) {
 						ritInterruptEnabledFlag = 1;
 					}
 				}
-			}
-
-			if (updateTempReadingFlag == 1) {
-				updateTempSensor();
-				updateTempReadingFlag = 0;
 			}
 
 			joystickStatus = joystick_read();
