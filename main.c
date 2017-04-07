@@ -40,7 +40,7 @@ int8_t xReading;
 int8_t yReading;
 int8_t zReading;
 int NNN = 0;
-int segNum = 0;
+volatile int segNum = 0;
 volatile int updateOledFlag = 0;
 volatile int sendCemsFlag = 0;
 volatile int sendHelpMsgFlag = 0;
@@ -522,7 +522,7 @@ int main(void) {
 				updateOledFlag = 0;
 			}
 
-			if (fireAlert == 0 && temperatureReading > 290) {
+			if (fireAlert == 0 && temperatureReading > 250) {
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
 					RIT_Cmd(LPC_RIT, ENABLE);
@@ -551,34 +551,34 @@ int main(void) {
 				updateTempReadingFlag = 0;
 			}
 
-//			joystickStatus = joystick_read();
-//			if (joystickStatus == JOYSTICK_CENTER) {
-////				printf("it is in the centre\n");
-//			}
-//
-//			if (joystickStatus != JOYSTICK_RIGHT
-//					&& joystickStatus != JOYSTICK_LEFT) {
-//				joystickHold = 0;
-//			}
-//
-//			if ((joystickHold == 0) &&
-//					(joystickStatus == JOYSTICK_RIGHT
-//					|| joystickStatus == JOYSTICK_LEFT)) {
-////				printf("joystick moved left or right\n");
-//				if (currentScreen == 0) {
-//					oled_clearScreen(OLED_COLOR_BLACK);
-//					initMonitor2Oled();
-//					currentScreen = 1;
-//				} else if (currentScreen == 1) {
-//					oled_clearScreen(OLED_COLOR_BLACK);
-//					initMonitorOled();
-//					if (oledUpdatedFlag == 1) {
-//						updateOled();
-//					}
-//					currentScreen = 0;
-//				}
-//				joystickHold = 1;
-//			}
+			joystickStatus = joystick_read();
+			if (joystickStatus == JOYSTICK_CENTER) {
+//				printf("it is in the centre\n");
+			}
+
+			if (joystickStatus != JOYSTICK_RIGHT
+					&& joystickStatus != JOYSTICK_LEFT) {
+				joystickHold = 0;
+			}
+
+			if ((joystickHold == 0) &&
+					(joystickStatus == JOYSTICK_RIGHT
+					|| joystickStatus == JOYSTICK_LEFT)) {
+//				printf("joystick moved left or right\n");
+				if (currentScreen == 0) {
+					oled_clearScreen(OLED_COLOR_BLACK);
+					initMonitor2Oled();
+					currentScreen = 1;
+				} else if (currentScreen == 1) {
+					oled_clearScreen(OLED_COLOR_BLACK);
+					initMonitorOled();
+					if (oledUpdatedFlag == 1) {
+						updateOled();
+					}
+					currentScreen = 0;
+				}
+				joystickHold = 1;
+			}
 
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
