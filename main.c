@@ -26,7 +26,9 @@
 #include "light.h"
 #include "temp.h"
 
-typedef enum {MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE} CUTE_STATE;
+typedef enum {
+	MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE
+} CUTE_STATE;
 
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
@@ -38,6 +40,7 @@ uint8_t lightLowWarning;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
 int ritInterruptEnabledFlag = 0;
+int cancelOptionFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
@@ -46,6 +49,7 @@ volatile int segNum = 0;
 volatile int updateOledFlag = 0;
 volatile int sendCemsFlag = 0;
 volatile int sendHelpMsgFlag = 0;
+volatile int cancelHelpMsgFlag = 0;
 volatile int toggleBlink = 0;
 int currentScreen = 0;
 int oledUpdatedFlag = 0;
@@ -134,9 +138,8 @@ static void initMonitorOled() {
 }
 
 void initMonitor2Oled() {
-	oled_putString(0, 12, "Request", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE,
-			OLED_COLOR_BLACK);
+	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 static void updateOled() {
@@ -217,7 +220,11 @@ void RIT_IRQHandler(void) {
 }
 void EINT0_IRQHandler(void) {
 //	printf("eint0 handler \n");
-	sendHelpMsgFlag = 1;
+	if (cancelOptionFlag == 1) {
+		cancelHelpMsgFlag = 1;
+	} else {
+		sendHelpMsgFlag = 1;
+	}
 	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
@@ -246,7 +253,7 @@ void TIMER0_IRQHandler(void) {
 //		led7seg_setChar(invertedChars[segNum], TRUE);
 		updateTempReadingFlag = 1;
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
-			updateOledFlag = 2;
+			updateOledFlag = 1;
 			if (segNum == 15) {
 				sendCemsFlag = 1;
 			}
@@ -513,15 +520,15 @@ int main(void) {
 			}
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
+				TIM_Cmd(LPC_TIM0, ENABLE);
 				monitorFlag = 1;
-				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				initMonitorOled();
-				led7seg_setChar(invertedChars[0], TRUE);
+				sendHelpMsgFlag = 0;
 				sw4HoldStatus = 1;
+				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 				updateSensors();
 				lightThresholdInit();
-				TIM_Cmd(LPC_TIM0, ENABLE);
-				sendHelpMsgFlag = 0;
+				initMonitorOled();
+				led7seg_setChar(invertedChars[0], TRUE);
 			}
 		}
 
@@ -531,9 +538,6 @@ int main(void) {
 			if (updateTempReadingFlag == 1) {
 				updateTempSensor();
 				updateTempReadingFlag = 0;
-				if (updateOledFlag == 2) {
-					updateOledFlag = 1;
-				}
 				led7seg_setChar(invertedChars[segNum], TRUE);
 			}
 			if (updateOledFlag == 1) {
@@ -567,12 +571,14 @@ int main(void) {
 			}
 
 			joystickStatus = joystick_read();
-			if (joystickStatus == JOYSTICK_CENTER) {
-				printf("it is in the centre\n");
-			}
+//			if (joystickStatus == JOYSTICK_CENTER) {
+//				joystickHold = 0;
+//			}
 
 			if (joystickStatus != JOYSTICK_RIGHT
-					&& joystickStatus != JOYSTICK_LEFT) {
+					&& joystickStatus != JOYSTICK_LEFT
+					&& joystickStatus != JOYSTICK_UP
+					&& joystickStatus != JOYSTICK_DOWN) {
 				joystickHold = 0;
 			}
 
@@ -595,10 +601,32 @@ int main(void) {
 				joystickHold = 1;
 			}
 
+			if (currentScreen == 1) {
+				if (joystickHold == 0 && joystickStatus == JOYSTICK_UP) {
+					oled_putString(0, 12, "Request <", OLED_COLOR_WHITE,
+							OLED_COLOR_BLACK);
+					oled_putString(0, 39, "Cancel  ", OLED_COLOR_WHITE,
+							OLED_COLOR_BLACK);
+					cancelOptionFlag = 0;
+					joystickHold = 1;
+				} else if (joystickHold == 0 && joystickStatus == JOYSTICK_DOWN) {
+					oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE,
+							OLED_COLOR_BLACK);
+					oled_putString(0, 39, "Cancel <", OLED_COLOR_WHITE,
+							OLED_COLOR_BLACK);
+					cancelOptionFlag = 1;
+					joystickHold = 1;
+				}
+			}
+
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
 						BLOCKING);
 				sendHelpMsgFlag = 0;
+			} else if (cancelHelpMsgFlag == 1) {
+				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 19,
+						BLOCKING);
+				cancelHelpMsgFlag = 0;
 			}
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
