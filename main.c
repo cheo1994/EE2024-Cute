@@ -428,23 +428,22 @@ static void initAll() {
 	temp_init(getMsTick);
 }
 
-void prepareStableMode() {
+void prepareStableState() {
 	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
 	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
 	segNum = 0; 						//Reset the segnum count to 0
-	fireAlert = 0; 						//reset fire alert
-	ritInterruptEnabledFlag = 0; 		//turn off the RGB led
-	moveInDarkAlert = 0;				//Reset moving in dark flag
-	lightLowWarning = 0;				//Reset low light flag
+	fireAlert = 0; 						//Clears the "fire alert" flag
+	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
+	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
+	lightLowWarning = 0;				//Clears the "low light warning" flag
 	offBlueLed();
 	offRedLed();
 	TIM_Cmd(LPC_TIM0, DISABLE); 		//Disables timer for 7Seg
 	TIM_ResetCounter(LPC_TIM0 );		//Resets the counter timer for 7seg
-	NVIC_DisableIRQ(RIT_IRQn);
-
+	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
 	//used for 2nd screen
 	currentScreen = 0;
-	oledUpdatedFlag = 0;
+	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
 }
 
 void sendCemsMessages() {
@@ -485,6 +484,16 @@ int checkForMovement(int8_t xReading, int8_t yReading, int8_t zReading) {
 	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
 }
 
+void prepareMonitorState() {
+	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
+	TIM_Cmd(LPC_TIM0, ENABLE);
+	sendHelpMsgFlag = 0;
+	updateSensors();
+	lightThresholdInit();
+	initMonitorOled();
+	led7seg_setChar(invertedChars[0], TRUE);
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -513,7 +522,7 @@ int main(void) {
 
 	while (1) {
 
-		prepareStableMode();
+		prepareStableState();
 
 		while (monitorFlag == 0) {
 
@@ -524,15 +533,9 @@ int main(void) {
 			}
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
-				TIM_Cmd(LPC_TIM0, ENABLE);
 				monitorFlag = 1;
-				sendHelpMsgFlag = 0;
+				prepareMonitorState();
 				sw4HoldStatus = 1;
-				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				updateSensors();
-				lightThresholdInit();
-				initMonitorOled();
-				led7seg_setChar(invertedChars[0], TRUE);
 			}
 		}
 
