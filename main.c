@@ -26,6 +26,8 @@
 #include "light.h"
 #include "temp.h"
 
+typedef enum {MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE} CUTE_STATE;
+
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
 volatile int monitorFlag = 0;
@@ -55,6 +57,13 @@ uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
+char* monitorMsg = "Entering MONITOR Mode.\r\n";
+char* darknessMsg = "Movement in darkness was Detected.\r\n";
+char* fireMsg = "Fire was Detected.\r\n";
+int darknessMsgLen = 36;
+int fireMsgLen = 20;
+int monitorMsgLen = 24;
+
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 */
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
@@ -126,7 +135,8 @@ static void initMonitorOled() {
 
 void initMonitor2Oled() {
 	oled_putString(0, 12, "Request", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE,
+			OLED_COLOR_BLACK);
 }
 
 static void updateOled() {
@@ -183,6 +193,7 @@ void SysTick_Handler(void) {
 	msTicks++;
 }
 void RIT_IRQHandler(void) {
+
 	if (toggleBlink == 0) {
 		if (fireAlert == 1) {
 			onRedLed();
@@ -233,12 +244,12 @@ void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
 //		led7seg_setChar(invertedChars[segNum], TRUE);
+		updateTempReadingFlag = 1;
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
 			updateOledFlag = 2;
 			if (segNum == 15) {
 				sendCemsFlag = 1;
 			}
-		} else {
 		}
 		updateTempReadingFlag = 1;
 		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
@@ -429,25 +440,53 @@ void prepareStableMode() {
 	oledUpdatedFlag = 0;
 }
 
+void sendCemsMessages() {
+	if (sendCemsFlag == 1) {
+		char str[37] = "";
+		sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+				temperatureReading / 10.0, lightReading, xReading, yReading,
+				zReading);
+
+		if (fireAlert == 1) {
+			UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
+		}
+
+		if (moveInDarkAlert == 1) {
+			UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+		}
+
+		UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+
+		sendCemsFlag = 0;
+	}
+}
+
+void enableRitRGBinterrupt() {
+	RIT_Cmd(LPC_RIT, ENABLE);
+	NVIC_ClearPendingIRQ(RIT_IRQn);
+	NVIC_EnableIRQ(RIT_IRQn);
+}
+
+void initBoardPosition() {
+	acc_read(&xReading, &yReading, &zReading);
+	xoff = 0 - xReading;
+	yoff = 0 - yReading;
+	zoff = 64 - zReading;
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
-	uint8_t joystickStatus;
+	uint8_t joystickStatus = JOYSTICK_CENTER;
 	int sw4HoldStatus = 0;
 	int joystickHold = 0;
-
-	char* monitorMsg = "Entering MONITOR Mode.\r\n";
-	char* darknessMsg = "Movement in darkness was Detected.\r\n";
-	char* fireMsg = "Fire was Detected.\r\n";
-	int darknessMsgLen = strlen(darknessMsg);
-	int fireMsgLen = strlen(fireMsg);
-	int monitorMsgLen = strlen(monitorMsg);
 
 	initAll();
 	initRitInterrupt();
 	initTimer0Interrupt();
+	initBoardPosition();
 
 	LPC_SC ->EXTINT = 1;
 	LPC_SC ->EXTMODE = 1;
@@ -460,12 +499,6 @@ int main(void) {
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
-
-	//Assume base board in zero-g position when reading first value.
-	acc_read(&xReading, &yReading, &zReading);
-	xoff = 0 - xReading;
-	yoff = 0 - yReading;
-	zoff = 64 - zReading;
 
 	while (1) {
 
@@ -482,35 +515,18 @@ int main(void) {
 			if (sw4 == 0 && sw4HoldStatus == 0) {
 				monitorFlag = 1;
 				UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-				sw4HoldStatus = 1;
-				sendHelpMsgFlag = 0;
 				initMonitorOled();
-				TIM_Cmd(LPC_TIM0, ENABLE);
 				led7seg_setChar(invertedChars[0], TRUE);
+				sw4HoldStatus = 1;
 				updateSensors();
 				lightThresholdInit();
+				TIM_Cmd(LPC_TIM0, ENABLE);
+				sendHelpMsgFlag = 0;
 			}
 		}
 
 		while (monitorFlag == 1) {
-			if (sendCemsFlag == 1) {
-				char str[37] = "";
-				sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
-						temperatureReading / 10.0, lightReading, xReading,
-						yReading, zReading);
-
-				if (fireAlert == 1) {
-					UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-				}
-
-				if (moveInDarkAlert == 1) {
-					UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
-				}
-
-				UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
-
-				sendCemsFlag = 0;
-			}
+			sendCemsMessages();
 
 			if (updateTempReadingFlag == 1) {
 				updateTempSensor();
@@ -530,13 +546,10 @@ int main(void) {
 				updateOledFlag = 0;
 			}
 
-
-			if (fireAlert == 0 && temperatureReading > 250) {
+			if (fireAlert == 0 && temperatureReading > 290) {
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
-					RIT_Cmd(LPC_RIT, ENABLE);
-					NVIC_ClearPendingIRQ(RIT_IRQn);
-					NVIC_EnableIRQ(RIT_IRQn);
+					enableRitRGBinterrupt();
 					ritInterruptEnabledFlag = 1;
 				}
 			}
@@ -547,15 +560,16 @@ int main(void) {
 						|| abs(zReading) > 96) {
 					moveInDarkAlert = 1;
 					if (ritInterruptEnabledFlag == 0) {
-						RIT_Cmd(LPC_RIT, ENABLE);
-						NVIC_ClearPendingIRQ(RIT_IRQn);
-						NVIC_EnableIRQ(RIT_IRQn);
+						enableRitRGBinterrupt();
 						ritInterruptEnabledFlag = 1;
 					}
 				}
 			}
 
 			joystickStatus = joystick_read();
+			if (joystickStatus == JOYSTICK_CENTER) {
+				printf("it is in the centre\n");
+			}
 
 			if (joystickStatus != JOYSTICK_RIGHT
 					&& joystickStatus != JOYSTICK_LEFT) {
