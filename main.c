@@ -486,12 +486,13 @@ int checkForMovement(int8_t xReading, int8_t yReading, int8_t zReading) {
 
 void prepareMonitorState() {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-	TIM_Cmd(LPC_TIM0, ENABLE);
 	sendHelpMsgFlag = 0;
-	updateSensors();
-	lightThresholdInit();
-	initMonitorOled();
+	TIM_Cmd(LPC_TIM0, ENABLE);
+	updateTempSensor();
 	led7seg_setChar(invertedChars[0], TRUE);
+	updateSensors();
+	initMonitorOled();
+	lightThresholdInit();
 }
 
 int main(void) {
@@ -567,7 +568,7 @@ int main(void) {
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
 				updateAccSensor();
-				if (checkForMovement()) {
+				if (checkForMovement(xReading, yReading, zReading)) {
 					moveInDarkAlert = 1;
 					if (ritInterruptEnabledFlag == 0) {
 						enableRitRGBinterrupt();
