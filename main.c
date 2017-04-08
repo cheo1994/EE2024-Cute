@@ -487,6 +487,7 @@ int checkForMovement(int8_t xReading, int8_t yReading, int8_t zReading) {
 void prepareMonitorState() {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 	sendHelpMsgFlag = 0;
+	cancelOptionFlag = 0;
 	TIM_Cmd(LPC_TIM0, ENABLE);
 	updateTempSensor();
 	led7seg_setChar(invertedChars[0], TRUE);
@@ -604,6 +605,7 @@ int main(void) {
 						updateOled();
 					}
 					currentScreen = 0;
+					cancelOptionFlag = 0;
 				}
 				joystickHold = 1;
 			}
