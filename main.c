@@ -35,7 +35,7 @@ volatile uint32_t swTicks;
 volatile int monitorFlag = 0;
 uint32_t lightReading = 1;
 int32_t temperatureReading;
-volatile int updateTempReadingFlag = 0;
+volatile int oneSecFlag = 0;
 uint8_t lightLowWarning;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
@@ -251,14 +251,14 @@ void TIMER0_IRQHandler(void) {
 	if (LPC_TIM0 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
 //		led7seg_setChar(invertedChars[segNum], TRUE);
-		updateTempReadingFlag = 1;
+		oneSecFlag = 1;
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
 			updateOledFlag = 1;
 			if (segNum == 15) {
 				sendCemsFlag = 1;
 			}
 		}
-		updateTempReadingFlag = 1;
+		oneSecFlag = 1;
 		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 		NVIC_ClearPendingIRQ(TIMER0_IRQn);
 	}
@@ -544,9 +544,9 @@ int main(void) {
 		while (monitorFlag == 1) {
 			sendCemsMessages();
 
-			if (updateTempReadingFlag == 1) {
+			if (oneSecFlag == 1) {
 				updateTempSensor();
-				updateTempReadingFlag = 0;
+				oneSecFlag = 0;
 				led7seg_setChar(invertedChars[segNum], TRUE);
 			}
 			if (updateOledFlag == 1) {
@@ -631,10 +631,18 @@ int main(void) {
 			if (sendHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
 						BLOCKING);
+				int i;
+				for(i = 0; i < 8; i++) {
+					pca9532_setLeds(0x1 << i, 0xFFFF);
+					pca9532_setLeds(0x8000 >> i, 0x0);
+				}
+				pca9532_setLeds(0x0, 0xFFFF);
 				sendHelpMsgFlag = 0;
 			} else if (cancelHelpMsgFlag == 1) {
 				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 22,
 						BLOCKING);
+				pca9532_setLeds(0xFFFF, 0xFFFF);
+				pca9532_setLeds(0x0, 0xFFFF);
 				cancelHelpMsgFlag = 0;
 			}
 
