@@ -247,8 +247,8 @@ void EINT3_IRQHandler(void) {
 	}
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
-void TIMER0_IRQHandler(void) {
-	if (LPC_TIM0 ->IR & (1 << 0)) {
+void TIMER1_IRQHandler(void) {
+	if (LPC_TIM1 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
 //		led7seg_setChar(invertedChars[segNum], TRUE);
 		oneSecFlag = 1;
@@ -258,9 +258,8 @@ void TIMER0_IRQHandler(void) {
 				sendCemsFlag = 1;
 			}
 		}
-		oneSecFlag = 1;
-		TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
-		NVIC_ClearPendingIRQ(TIMER0_IRQn);
+		TIM_ClearIntPending(LPC_TIM1, TIM_MR0_INT);
+		NVIC_ClearPendingIRQ(TIMER1_IRQn);
 	}
 }
 
@@ -392,7 +391,7 @@ static void initUart3Interrupt() {
 	LPC_UART3 ->IER |= UART_IER_THREINT_EN;
 	NVIC_EnableIRQ(UART3_IRQn);
 }
-static void initTimer0Interrupt() {
+static void initTimer1Interrupt() {
 	TIM_MATCHCFG_Type timMatchCfg;
 	timMatchCfg.MatchChannel = 0;
 	timMatchCfg.IntOnMatch = 1;
@@ -400,15 +399,15 @@ static void initTimer0Interrupt() {
 	timMatchCfg.ResetOnMatch = 1;
 	timMatchCfg.ExtMatchOutputType = 0;
 	timMatchCfg.MatchValue = 1000;
-	TIM_ConfigMatch(LPC_TIM0, &timMatchCfg);
+	TIM_ConfigMatch(LPC_TIM1, &timMatchCfg);
 
 	TIM_TIMERCFG_Type timTimerCfg;
 	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
 	timTimerCfg.PrescaleValue = 1000;
-	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timTimerCfg);
+	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &timTimerCfg);
 
-	NVIC_ClearPendingIRQ(TIMER0_IRQn);
-	NVIC_EnableIRQ(TIMER0_IRQn);
+	NVIC_ClearPendingIRQ(TIMER1_IRQn);
+	NVIC_EnableIRQ(TIMER1_IRQn);
 }
 static void initAll() {
 	init_i2c();
@@ -438,12 +437,12 @@ void prepareStableState() {
 	lightLowWarning = 0;				//Clears the "low light warning" flag
 	offBlueLed();
 	offRedLed();
-	TIM_Cmd(LPC_TIM0, DISABLE); 		//Disables timer for 7Seg
-	TIM_ResetCounter(LPC_TIM0 );		//Resets the counter timer for 7seg
+	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
+	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
 	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
 	//used for 2nd screen
 	currentScreen = 0;
-	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
+	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
 }
 
 void sendCemsMessages() {
@@ -488,7 +487,7 @@ void prepareMonitorState() {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 	sendHelpMsgFlag = 0;
 	cancelOptionFlag = 0;
-	TIM_Cmd(LPC_TIM0, ENABLE);
+	TIM_Cmd(LPC_TIM1, ENABLE);
 	updateTempSensor();
 	led7seg_setChar(invertedChars[0], TRUE);
 	updateSensors();
@@ -507,7 +506,7 @@ int main(void) {
 
 	initAll();
 	initRitInterrupt();
-	initTimer0Interrupt();
+	initTimer1Interrupt();
 	initBoardPosition();
 
 	LPC_SC ->EXTINT = 1;
@@ -521,6 +520,8 @@ int main(void) {
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
+
+	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(5, 4, 0));
 
 	while (1) {
 
@@ -632,9 +633,10 @@ int main(void) {
 				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
 						BLOCKING);
 				int i;
-				for(i = 0; i < 8; i++) {
+				for (i = 0; i < 8; i++) {
 					pca9532_setLeds(0x1 << i, 0xFFFF);
 					pca9532_setLeds(0x8000 >> i, 0x0);
+					Timer0_Wait(25);
 				}
 				pca9532_setLeds(0x0, 0xFFFF);
 				sendHelpMsgFlag = 0;
@@ -642,6 +644,7 @@ int main(void) {
 				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 22,
 						BLOCKING);
 				pca9532_setLeds(0xFFFF, 0xFFFF);
+				Timer0_Wait(200);
 				pca9532_setLeds(0x0, 0xFFFF);
 				cancelHelpMsgFlag = 0;
 			}
@@ -658,7 +661,6 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
-//			Timer0_Wait(1);
 		}
 
 	}
