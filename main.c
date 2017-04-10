@@ -1,10 +1,14 @@
 /***************************
- *   A demo example using several of the peripherals on the base board
- *
+ *   EE2024 Assignment 2 for CUTE
+ *   Student 1: Kelvin Ng Poh Ching
+ *   Student 2: Teh Chee Yeo A0139671X
  *   Copyright(C) 2011, EE2024
  *   All rights reserved.
  *
  **************************/
+/******************************************************************************
+ * Includes
+ *****************************************************************************/
 #include "stdio.h"
 #include "string.h"
 #include "stdlib.h"
@@ -15,7 +19,6 @@
 #include "lpc17xx_timer.h"
 #include "lpc17xx_rit.h"
 #include "lpc17xx_uart.h"
-#include "joystick.h"
 
 #include "joystick.h"
 #include "pca9532.h"
@@ -25,6 +28,8 @@
 #include "led7seg.h"
 #include "light.h"
 #include "temp.h"
+
+#define TEMPERATURE_ALERT 290 // 290 for 29.0 Degree celcius
 
 typedef enum {
 	MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE
@@ -176,6 +181,9 @@ void pinsel_uart3(void) {
 	PINSEL_ConfigPin(&PinCfg);
 }
 
+/******************************************************************************
+ * Helper Functions
+ *****************************************************************************/
 void onRedLed() {
 	GPIO_SetValue(2, 1);
 }
@@ -192,9 +200,14 @@ void onBlueLed() {
 	GPIO_SetValue(0, (1 << 26));
 }
 
+
+/******************************************************************************
+ * Handlers
+ *****************************************************************************/
 void SysTick_Handler(void) {
 	msTicks++;
 }
+
 void RIT_IRQHandler(void) {
 
 	if (toggleBlink == 0) {
@@ -218,6 +231,7 @@ void RIT_IRQHandler(void) {
 	LPC_RIT ->RICTRL |= 0x1;
 	NVIC_ClearPendingIRQ(RIT_IRQn);
 }
+
 void EINT0_IRQHandler(void) {
 //	printf("eint0 handler \n");
 	if (cancelOptionFlag == 1) {
@@ -228,6 +242,7 @@ void EINT0_IRQHandler(void) {
 	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
+
 void EINT3_IRQHandler(void) {
 //	printf("enter eint3 handler\n");
 	if (light_getIrqStatus()) {
@@ -247,6 +262,7 @@ void EINT3_IRQHandler(void) {
 	}
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
+
 void TIMER1_IRQHandler(void) {
 	if (LPC_TIM1 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
@@ -560,7 +576,7 @@ int main(void) {
 				updateOledFlag = 0;
 			}
 
-			if (fireAlert == 0 && temperatureReading > 290) {
+			if (fireAlert == 0 && temperatureReading > TEMPERATURE_ALERT) {
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
 					enableRitRGBinterrupt();
