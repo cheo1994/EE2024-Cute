@@ -181,25 +181,6 @@ void pinsel_uart3(void) {
 	PINSEL_ConfigPin(&PinCfg);
 }
 
-/******************************************************************************
- * Helper Functions
- *****************************************************************************/
-void onRedLed() {
-	GPIO_SetValue(2, 1);
-}
-
-void offRedLed() {
-	GPIO_ClearValue(2, 1);
-}
-
-void offBlueLed() {
-	GPIO_ClearValue(0, (1 << 26));
-}
-
-void onBlueLed() {
-	GPIO_SetValue(0, (1 << 26));
-}
-
 
 /******************************************************************************
  * Handlers
@@ -429,7 +410,7 @@ static void initAll() {
 	init_i2c();
 	init_ssp();
 	init_GPIO();
-//	pca9532_init();
+	pca9532_init();
 	joystick_init();
 	acc_init();
 	oled_init();
@@ -631,14 +612,14 @@ int main(void) {
 				if (joystickHold == 0 && joystickStatus == JOYSTICK_UP) {
 					oled_putString(0, 12, "Request <", OLED_COLOR_WHITE,
 							OLED_COLOR_BLACK);
-					oled_putString(0, 39, "Cancel  ", OLED_COLOR_WHITE,
+					oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE,
 							OLED_COLOR_BLACK);
 					cancelOptionFlag = 0;
 					joystickHold = 1;
 				} else if (joystickHold == 0 && joystickStatus == JOYSTICK_DOWN) {
 					oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE,
 							OLED_COLOR_BLACK);
-					oled_putString(0, 39, "Cancel <", OLED_COLOR_WHITE,
+					oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE,
 							OLED_COLOR_BLACK);
 					cancelOptionFlag = 1;
 					joystickHold = 1;
