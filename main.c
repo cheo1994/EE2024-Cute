@@ -40,7 +40,6 @@ typedef enum {
 	MONITOR_READINGS, MONITOR_OPTIONS, STABLE
 } OLED_STATE;
 
-
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
 CUTE_STATE cuteStatus = STABLE_STATE;
@@ -549,24 +548,22 @@ void sendEmergencyRequest(void) {
 }
 
 void sendCemsMessages(void) {
-	if (sendCemsFlag == 1) {
-		char str[37] = "";
-		sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
-				temperatureReading / 10.0, lightReading, xReading, yReading,
-				zReading);
+	char str[37] = "";
+	sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+			temperatureReading / 10.0, lightReading, xReading, yReading,
+			zReading);
 
-		if (fireAlert == 1) {
-			UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-		}
-
-		if (moveInDarkAlert == 1) {
-			UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
-		}
-
-		UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
-
-		sendCemsFlag = 0;
+	if (fireAlert == 1) {
+		UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
 	}
+
+	if (moveInDarkAlert == 1) {
+		UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+	}
+
+	UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+
+	sendCemsFlag = 0;
 }
 
 int main(void) {
@@ -614,21 +611,20 @@ int main(void) {
 		}
 
 		while (cuteStatus == MONITOR_STATE) {
-			sendCemsMessages();
 
 			if (oneSecFlag == 1) {
 				oneSecFlag = 0;
 				led7seg_setChar(invertedChars[segNum], TRUE);
 				updateTempSensor();
-			}
-			if (updateOledFlag == 1) {
-				updateSensors();
-//				updateTempReadingFlag = 1;
-				if (oledStatus == MONITOR_READINGS) {
-					updateOledReadings();
+				if (updateOledFlag == 1) {
+					updateLightSensor();
+					updateAccSensor();
+					if (oledStatus == MONITOR_READINGS) {
+						updateOledReadings();
+					}
+					oledUpdatedFlag = 1;
+					updateOledFlag = 0;
 				}
-				oledUpdatedFlag = 1;
-				updateOledFlag = 0;
 			}
 
 			if (fireAlert == 0 && temperatureReading > TEMPERATURE_THRESHOLD) {
@@ -704,6 +700,9 @@ int main(void) {
 				sw4HoldStatus = 0;
 			}
 
+			if (sendCemsFlag == 1) {
+				sendCemsMessages();
+			}
 		}
 
 	}
