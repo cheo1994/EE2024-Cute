@@ -220,11 +220,7 @@ void RIT_IRQHandler(void) {
 }
 void EINT0_IRQHandler(void) {
 //	printf("eint0 handler \n");
-	if (cancelOptionFlag == 1) {
-		cancelHelpMsgFlag = 1;
-	} else {
-		sendHelpMsgFlag = 1;
-	}
+	sendHelpMsgFlag = 1;
 	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
@@ -629,24 +625,32 @@ int main(void) {
 				}
 			}
 
-			if (sendHelpMsgFlag == 1) {
-				UART_Send(LPC_UART3, (uint8_t *) "Please send help.\r\n", 19,
-						BLOCKING);
-				int i;
-				for (i = 0; i < 8; i++) {
-					pca9532_setLeds(0x1 << i, 0xFFFF);
-					pca9532_setLeds(0x8000 >> i, 0x0);
-					Timer0_Wait(25);
+			if (joyStickStatus == JOYSTICK_CENTER) {
+				if (cancelOptionFlag == 1) {
+					UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18,
+							BLOCKING);
+					int i;
+					for (i = 0; i < 8; i++) {
+						pca9532_setLeds(0x1 << i, 0xFFFF);
+						pca9532_setLeds(0x8000 >> i, 0x0);
+						Timer0_Wait(25);
+					}
+					pca9532_setLeds(0x0, 0xFFFF);
+				} else if (cancelOptionFlag == 0) {
+					UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n",
+							22, BLOCKING);
+					pca9532_setLeds(0xFFFF, 0xFFFF);
+					Timer0_Wait(200);
+					pca9532_setLeds(0x0, 0xFFFF);
 				}
-				pca9532_setLeds(0x0, 0xFFFF);
-				sendHelpMsgFlag = 0;
-			} else if (cancelHelpMsgFlag == 1) {
-				UART_Send(LPC_UART3, (uint8_t *) "Cancel help request.\r\n", 22,
+			}
+
+			if (sendHelpMsgFlag == 1) {
+				UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14,
 						BLOCKING);
-				pca9532_setLeds(0xFFFF, 0xFFFF);
-				Timer0_Wait(200);
-				pca9532_setLeds(0x0, 0xFFFF);
-				cancelHelpMsgFlag = 0;
+				pca9532_setBlink0Period(151);
+				pca9532_setBlink0Leds(0xFFFF);
+				sendHelpMsgFlag = 0;
 			}
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
