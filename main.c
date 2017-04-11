@@ -30,8 +30,10 @@
 #include "light.h"
 #include "temp.h"
 
-#define TEMPERATURE_THRESHOLD 290 // 290 for 29.0 Degree celcius
+#define TEMPERATURE_THRESHOLD 320 // 290 for 29.0 Degree celcius
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
+#define TEMP_SCALAR_DIV10 1
+#define TEMP_HALF_PERIODS 340
 
 typedef enum {
 	MONITOR_STATE, STABLE_STATE
@@ -42,12 +44,10 @@ typedef enum {
 } OLED_STATE;
 
 volatile uint32_t msTicks = 0;
-volatile uint32_t swTicks;
 CUTE_STATE cuteStatus = STABLE_STATE;
 OLED_STATE oledStatus = STABLE;
-uint32_t lightReading = 1;
+uint32_t lightReading;
 int32_t temperatureReading;
-volatile int oneSecFlag = 0;
 uint8_t lightLowWarning;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
@@ -77,9 +77,6 @@ int monitorMsgLen = 24;
 int32_t temp_t1 = 0;
 int32_t temp_t2 = 0;
 int temp_count = 0;
-#define TEMP_SCALAR_DIV10 1
-#define TEMP_HALF_PERIODS 340
-
 
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 inverted */
@@ -113,56 +110,6 @@ void enableRitRGBinterrupt(void) {
 }
 
 /*****************************************************************************/
-/***************** Accelerometer Helper Functions ****************************/
-/*****************************************************************************/
-void updateAccSensor(void) {
-	NVIC_DisableIRQ(EINT3_IRQn);
-	acc_read(&xReading, &yReading, &zReading);
-	NVIC_EnableIRQ(EINT3_IRQn);
-	xReading = xReading + xoff;
-	yReading = yReading + yoff;
-	zReading = zReading + zoff;
-}
-
-int checkForMovement(void) {
-	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
-}
-
-void accReadToString(char* xStr, char* yStr, char* zStr) {
-	char xBuffer[5] = "";
-	char yBuffer[5] = "";
-	char zBuffer[5] = "";
-	sprintf(xBuffer, "%3d", xReading);
-	strcat(xStr, xBuffer);
-//	strcat(xStr, "  ");
-	sprintf(yBuffer, "%3d", yReading);
-	strcat(yStr, yBuffer);
-//	strcat(yStr, "  ");
-	sprintf(zBuffer, "%3d", zReading);
-	strcat(zStr, zBuffer);
-//	strcat(zStr, "  ");
-}
-
-/*****************************************************************************/
-/***************** Temperature Helper Functions ****************************/
-/*****************************************************************************/
-void updateTempSensor(void) {
-	temperatureReading = temp_read();
-}
-
-void updateSensors(void) {
-	updateLightSensor();
-	updateTempSensor();
-	updateAccSensor();
-}
-
-void tempReadToString(char *str) {
-	char tempBuffer[5] = "";
-	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
-	strcat(str, tempBuffer);
-}
-
-/*****************************************************************************/
 /********************** Light Sensor Helper Functions ************************/
 /*****************************************************************************/
 void updateLightSensor(void) {
@@ -185,6 +132,62 @@ void lightReadToString(char *str) {
 	sprintf(lightBuffer, "%4d", lightReading);
 	strcat(str, lightBuffer);
 }
+
+void disableGPIOLightInterrupt(void) {
+	LPC_GPIOINT ->IO2IntEnF &= ~(1 << 5);
+}
+
+void enableGPIOLightInterrupt(void) {
+	LPC_GPIOINT ->IO2IntEnF |= (1 << 5);
+}
+
+/*****************************************************************************/
+/***************** Accelerometer Helper Functions ****************************/
+/*****************************************************************************/
+void updateAccSensor(void) {
+	disableGPIOLightInterrupt();
+	acc_read(&xReading, &yReading, &zReading);
+	enableGPIOLightInterrupt();
+	xReading = xReading + xoff;
+	yReading = yReading + yoff;
+	zReading = zReading + zoff;
+}
+
+int checkForMovement(void) {
+	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
+}
+
+void accReadToString(char* xStr, char* yStr, char* zStr) {
+	char xBuffer[5] = "";
+	char yBuffer[5] = "";
+	char zBuffer[5] = "";
+	sprintf(xBuffer, "%3d", xReading);
+	strcat(xStr, xBuffer);
+	sprintf(yBuffer, "%3d", yReading);
+	strcat(yStr, yBuffer);
+	sprintf(zBuffer, "%3d", zReading);
+	strcat(zStr, zBuffer);
+}
+
+/*****************************************************************************/
+/***************** Temperature Helper Functions ****************************/
+/*****************************************************************************/
+void updateTempSensor(void) {
+	temperatureReading = temp_read();
+}
+
+void updateSensors(void) {
+	updateLightSensor();
+	//updateTempSensor();
+	updateAccSensor();
+}
+
+void tempReadToString(char *str) {
+	char tempBuffer[5] = "";
+	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
+	strcat(str, tempBuffer);
+}
+
 
 /*****************************************************************************/
 /************************* OLED Helper Functions *****************************/
@@ -423,16 +426,18 @@ static void init_GPIO(void) {
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
 	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 
-//	// Initialize P0.2
-//	PinCfg.Funcnum = 0;
-//	PinCfg.OpenDrain = 0;
-//	PinCfg.Pinmode = 0;
-//	PinCfg.Portnum = 0;
-//	PinCfg.Pinnum = 2;
-//	PINSEL_ConfigPin(&PinCfg);
-//	GPIO_SetDir(0, (1 << 2), 0);
-//	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
-//	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	// Initialize P0.2
+	PinCfg.Funcnum = 0;
+	PinCfg.Pinnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	GPIO_SetDir(0, (1 << 2), 0);
+	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	// Enable GPIO interrupt for temperature
+	LPC_GPIOINT->IO0IntEnF |= (1 << 2);
+	LPC_GPIOINT->IO0IntEnR |= (1 << 2);
 
 }
 
@@ -478,11 +483,12 @@ static void initTimer1Interrupt(void) {
 	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &timTimerCfg);
 
 	NVIC_ClearPendingIRQ(TIMER1_IRQn);
+	NVIC_SetPriority(TIMER1_IRQn, NVIC_EncodePriority(5, 0, 0));
 	NVIC_EnableIRQ(TIMER1_IRQn);
 }
 
 static void initTimer0Interrupt(void) {
-	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(5, 4, 0));
+	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(5, 2, 0));
 }
 
 static void initEint0Interrupt(void) {
@@ -490,13 +496,13 @@ static void initEint0Interrupt(void) {
 	LPC_SC ->EXTMODE = 1;
 	LPC_SC ->EXTPOLAR = 0;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
-	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 2, 0));
+	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 1, 1));
 	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
 }
 
 static void initEint3Interrupt(void) {
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
-	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
+	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 1, 0));
 	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 }
 
@@ -522,13 +528,12 @@ static void initAll(void) {
 	light_setRange(LIGHT_RANGE_4000);
 	light_clearIrqStatus();
 	setLightThreshold();
-	temp_init(getMsTick);
 	initRit();
 	initTimer1Interrupt();
 	initBoardPosition();
 	initEint0Interrupt();
-	initEint3Interrupt();
 	initTimer0Interrupt();
+	initEint3Interrupt();
 }
 
 /*****************************************************************************/
@@ -569,30 +574,49 @@ void EINT0_IRQHandler(void) {
 }
 
 void EINT3_IRQHandler(void) {
-//	printf("enter eint3 handler\n");
-	if (light_getIrqStatus()) {
+	if (((LPC_GPIOINT->IO2IntStatF >> 5) & 0x1)) {
 		if (lightLowWarning == 0) {
-//			printf("Low light conditions, %d\n", light_read());
 			lightLowWarning = 1;
 			light_setLoThreshold(0);
 			light_setHiThreshold(51);
 		} else if (lightLowWarning == 1) {
-//			printf("Safe light conditions, %d\n", light_read());
 			lightLowWarning = 0;
 			light_setHiThreshold(3891);
 			light_setLoThreshold(50);
 		}
-		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 		light_clearIrqStatus();
+		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 	}
+
+	if (((LPC_GPIOINT->IO0IntStatF >> 2) & 0x1) ||
+			((LPC_GPIOINT->IO0IntStatR >> 2) & 0x1)) {
+        if (temp_t1 == 0 && temp_t2 == 0) {
+            temp_t1 = getMsTick();
+        } else if (temp_t1 != 0 && temp_t2 == 0) {
+            temp_count++;
+            if (temp_count == TEMP_HALF_PERIODS) {
+                temp_t2 = getMsTick();
+                if (temp_t2 > temp_t1) {
+                    temp_t2 = temp_t2 - temp_t1;
+                }
+                else {
+                	temp_t2 = (0xFFFFFFFF - temp_t1 + 1) + temp_t2;
+                }
+                temperatureReading = ((2*1000*temp_t2) / (TEMP_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731 );
+                temp_t2 = 0;
+                temp_t1 = 0;
+                temp_count = 0;
+            }
+        }
+        LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+    }
 //	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
 void TIMER1_IRQHandler(void) {
 	if (LPC_TIM1 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
-//		led7seg_setChar(invertedChars[segNum], TRUE);
-		oneSecFlag = 1;
+		led7seg_setChar(invertedChars[segNum], TRUE);
 		if (segNum == 5 || segNum == 10 || segNum == 15) {
 			updateOledFlag = 1;
 			if (segNum == 15) {
@@ -636,10 +660,6 @@ int main(void) {
 
 		while (cuteStatus == MONITOR_STATE) {
 
-			if (oneSecFlag == 1) {
-				oneSecFlag = 0;
-				led7seg_setChar(invertedChars[segNum], TRUE);
-				updateTempSensor();
 				if (updateOledFlag == 1) {
 					updateLightSensor();
 					updateAccSensor();
@@ -649,7 +669,6 @@ int main(void) {
 					oledUpdatedFlag = 1;
 					updateOledFlag = 0;
 				}
-			}
 
 			if (fireAlert == 0 && temperatureReading > TEMPERATURE_THRESHOLD) {
 				fireAlert = 1;
