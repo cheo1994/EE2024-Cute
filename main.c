@@ -37,6 +37,9 @@
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
 #define TEMP_SCALAR_DIV10 1
 #define TEMP_HALF_PERIODS 340
+#define X_THRESHOLD 96
+#define Y_THRESHOLD	64
+#define Z_THRESHOLD 96
 
 /*****************************************************************************/
 /**************************** Type Definitions *******************************/
@@ -53,30 +56,30 @@ typedef enum {
 /*************************** Variable Declarations ***************************/
 /*****************************************************************************/
 
-volatile uint32_t msTicks = 0;
 CUTE_STATE cuteStatus = STABLE_STATE;
 OLED_STATE oledStatus = STABLE;
 uint32_t lightReading;
 int32_t temperatureReading;
-volatile int lightLowWarningFlag;
-uint8_t fireAlert = 0;
-uint8_t moveInDarkAlert = 0;
+int NNN = 0;
+int fireAlert = 0;
+int moveInDarkAlert = 0;
 int ritInterruptEnabledFlag = 0;
 int cancelOptionFlag = 0;
+int oledUpdatedFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
-int NNN = 0;
+volatile uint32_t msTicks = 0;
 volatile int segNum = 0;
 volatile int updateOledFlag = 0;
 volatile int sendCemsFlag = 0;
 volatile int sendHelpMsgFlag = 0;
 volatile int cancelHelpMsgFlag = 0;
+volatile int lightLowWarningFlag;
 volatile int toggleBlink = 0;
-int oledUpdatedFlag = 0;
 char* monitorMsg = "Entering MONITOR Mode.\r\n";
 char* darknessMsg = "Movement in darkness was Detected.\r\n";
 char* fireMsg = "Fire was Detected.\r\n";
@@ -162,7 +165,8 @@ void updateAccSensor(void) {
 }
 
 int checkForMovement(void) {
-	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
+	return abs(xReading) > X_THRESHOLD || abs(yReading) > Y_THRESHOLD
+			|| abs(zReading) > Z_THRESHOLD;
 }
 
 void accReadToString(char* xStr, char* yStr, char* zStr) {
@@ -184,16 +188,21 @@ void updateTempSensor(void) {
 	temperatureReading = temp_read();
 }
 
-void updateSensors(void) {
-	updateLightSensor();
-	//updateTempSensor();
-	updateAccSensor();
-}
-
 void tempReadToString(char *str) {
 	char tempBuffer[5] = "";
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
 	strcat(str, tempBuffer);
+}
+
+void disableGPIOTempInterrupt(void) {
+	LPC_GPIOINT ->IO0IntEnF &= ~(1 << 2);
+	LPC_GPIOINT ->IO0IntEnR &= ~(1 << 2);
+}
+
+void enableGPIOTempInterrupt(void) {
+	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	LPC_GPIOINT ->IO0IntEnF |= (1 << 2);
+	LPC_GPIOINT ->IO0IntEnR |= (1 << 2);
 }
 
 /*****************************************************************************/
@@ -232,19 +241,23 @@ void updateOledReadings(void) {
 }
 
 void prepareMonitorOptionsOled(void) {
-	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_clearScreen(OLED_COLOR_BLACK);
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 22, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 49, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 void toggleToRequest(void) {
-	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 22, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 49, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	cancelOptionFlag = 0;
 }
 
 void toggleToCancel(void) {
-	oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 22, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 49, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	cancelOptionFlag = 1;
 }
 
@@ -323,6 +336,10 @@ void sendCemsMessages(void) {
 	sendCemsFlag = 0;
 }
 
+void sendMonitorMessage(void) {
+	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
+}
+
 /*****************************************************************************/
 /********************** Additional Helper Functions ************************/
 /*****************************************************************************/
@@ -343,22 +360,30 @@ static void prepareStableState(void) {
 	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
 	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
 	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
-	//used for 2nd screen
 	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
-	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
+	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
 	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
+	disableGPIOTempInterrupt();
+	disableGPIOLightInterrupt();
+	light_shutdown();
 }
 
 static void prepareMonitorState(void) {
-	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-	sendHelpMsgFlag = 0;
-	cancelOptionFlag = 0;
+	enableGPIOTempInterrupt();
+	sendMonitorMessage();
 	TIM_Cmd(LPC_TIM1, ENABLE);
 	prepareMonitorReadingsOled();
 	led7seg_setChar(invertedChars[0], TRUE);
-	updateSensors();
+	light_enable();
+	light_setRange(LIGHT_RANGE_4000);
+	light_clearIrqStatus();
 	setLightThreshold();
+	initLightInterrupt();
+	updateLightSensor();
+	updateAccSensor();
 	oledStatus = MONITOR_READINGS;
+	cancelOptionFlag = 0;
+	sendHelpMsgFlag = 0;
 }
 
 /*****************************************************************************/
@@ -418,6 +443,19 @@ static void init_i2c(void) {
 	I2C_Cmd(LPC_I2C2, ENABLE);
 }
 
+void initLightInterrupt(void) {
+	GPIO_SetDir(2, (1 << 5), 0);
+	LPC_GPIOINT ->IO2IntEnF |= 1 << 5;
+	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
+}
+
+void initTempInterrupt(void) {
+	GPIO_SetDir(0, (1 << 2), 0);
+	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	LPC_GPIOINT ->IO0IntEnF |= (1 << 2);
+	LPC_GPIOINT ->IO0IntEnR |= (1 << 2);
+}
+
 static void init_GPIO(void) {
 	// Initialize sw3
 	PINSEL_CFG_Type PinCfg;
@@ -444,9 +482,6 @@ static void init_GPIO(void) {
 	PinCfg.Portnum = 2;
 	PinCfg.Pinnum = 5;
 	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(2, (1 << 5), 0);
-	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
-	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 
 	// Initialize P0.2
 	PinCfg.Funcnum = 0;
@@ -455,12 +490,6 @@ static void init_GPIO(void) {
 	PinCfg.Pinmode = 0;
 	PinCfg.Portnum = 0;
 	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(0, (1 << 2), 0);
-	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
-	// Enable GPIO interrupt for temperature
-	LPC_GPIOINT->IO0IntEnF |= (1 << 2);
-	LPC_GPIOINT->IO0IntEnR |= (1 << 2);
-
 }
 
 static void init_uart(void) {
@@ -546,11 +575,8 @@ static void initAll(void) {
 	led7seg_init();
 	rgb_init();
 	init_uart();
-	light_enable();
-	light_setRange(LIGHT_RANGE_4000);
-	light_clearIrqStatus();
-	setLightThreshold();
 	initRit();
+	initTempInterrupt();
 	initTimer1Interrupt();
 	initBoardPosition();
 	initEint0Interrupt();
@@ -596,7 +622,7 @@ void EINT0_IRQHandler(void) {
 }
 
 void EINT3_IRQHandler(void) {
-	if (((LPC_GPIOINT->IO2IntStatF >> 5) & 0x1)) {
+	if (((LPC_GPIOINT ->IO2IntStatF >> 5) & 0x1)) {
 		if (lightLowWarningFlag == 0) {
 			lightLowWarningFlag = 1;
 			light_setLoThreshold(0);
@@ -610,28 +636,28 @@ void EINT3_IRQHandler(void) {
 		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 	}
 
-	if (((LPC_GPIOINT->IO0IntStatF >> 2) & 0x1) ||
-			((LPC_GPIOINT->IO0IntStatR >> 2) & 0x1)) {
-        if (temp_t1 == 0 && temp_t2 == 0) {
-            temp_t1 = getMsTick();
-        } else if (temp_t1 != 0 && temp_t2 == 0) {
-            temp_count++;
-            if (temp_count == TEMP_HALF_PERIODS) {
-                temp_t2 = getMsTick();
-                if (temp_t2 > temp_t1) {
-                    temp_t2 = temp_t2 - temp_t1;
-                }
-                else {
-                	temp_t2 = (0xFFFFFFFF - temp_t1 + 1) + temp_t2;
-                }
-                temperatureReading = ((2*1000*temp_t2) / (TEMP_HALF_PERIODS*TEMP_SCALAR_DIV10) - 2731 );
-                temp_t2 = 0;
-                temp_t1 = 0;
-                temp_count = 0;
-            }
-        }
-        LPC_GPIOINT ->IO0IntClr |= (1 << 2);
-    }
+	if (((LPC_GPIOINT ->IO0IntStatF >> 2) & 0x1)
+			|| ((LPC_GPIOINT ->IO0IntStatR >> 2) & 0x1)) {
+		if (temp_t1 == 0 && temp_t2 == 0) {
+			temp_t1 = getMsTick();
+		} else if (temp_t1 != 0 && temp_t2 == 0) {
+			temp_count++;
+			if (temp_count == TEMP_HALF_PERIODS) {
+				temp_t2 = getMsTick();
+				if (temp_t2 > temp_t1) {
+					temp_t2 = temp_t2 - temp_t1;
+				} else {
+					temp_t2 = (0xFFFFFFFF - temp_t1 + 1) + temp_t2;
+				}
+				temperatureReading = ((2 * 1000 * temp_t2)
+						/ (TEMP_HALF_PERIODS * TEMP_SCALAR_DIV10) - 2731);
+				temp_t2 = 0;
+				temp_t1 = 0;
+				temp_count = 0;
+			}
+		}
+		LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+	}
 //	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
@@ -655,8 +681,9 @@ int main(void) {
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
-	uint8_t joystickStatus = 0;
 	int sw4HoldStatus = 0;
+
+	uint8_t joystickStatus = 0;
 	int joystickHold = 0;
 
 	initAll();
@@ -682,15 +709,15 @@ int main(void) {
 
 		while (cuteStatus == MONITOR_STATE) {
 
-				if (updateOledFlag == 1) {
-					updateLightSensor();
-					updateAccSensor();
-					if (oledStatus == MONITOR_READINGS) {
-						updateOledReadings();
-					}
-					oledUpdatedFlag = 1;
-					updateOledFlag = 0;
+			if (updateOledFlag == 1) {
+				updateLightSensor();
+				updateAccSensor();
+				if (oledStatus == MONITOR_READINGS) {
+					updateOledReadings();
 				}
+				oledUpdatedFlag = 1;
+				updateOledFlag = 0;
+			}
 
 			if (fireAlert == 0 && temperatureReading > TEMPERATURE_THRESHOLD) {
 				fireAlert = 1;
@@ -745,7 +772,6 @@ int main(void) {
 					}
 					joystickHold = 1;
 				}
-
 			}
 
 			if (sendHelpMsgFlag == 1) {
