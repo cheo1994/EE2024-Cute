@@ -688,6 +688,10 @@ int main(void) {
 				sendHelpMsgFlag = 0;
 			}
 
+			if (sendCemsFlag == 1) {
+				sendCemsMessages();
+			}
+
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
@@ -698,10 +702,6 @@ int main(void) {
 
 			if (sw4 == 1) {
 				sw4HoldStatus = 0;
-			}
-
-			if (sendCemsFlag == 1) {
-				sendCemsMessages();
 			}
 		}
 
