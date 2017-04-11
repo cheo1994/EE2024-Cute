@@ -32,6 +32,7 @@
 
 #define TEMPERATURE_THRESHOLD 290 // 290 for 29.0 Degree celcius
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
+
 typedef enum {
 	MONITOR_STATE, STABLE_STATE
 } CUTE_STATE;
@@ -73,6 +74,13 @@ int darknessMsgLen = 36;
 int fireMsgLen = 20;
 int monitorMsgLen = 24;
 
+int32_t temp_t1 = 0;
+int32_t temp_t2 = 0;
+int temp_count = 0;
+#define TEMP_SCALAR_DIV10 1
+#define TEMP_HALF_PERIODS 340
+
+
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 inverted */
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
@@ -98,6 +106,15 @@ void onBlueLed(void) {
 	GPIO_SetValue(0, (1 << 26));
 }
 
+void enableRitRGBinterrupt(void) {
+	RIT_Cmd(LPC_RIT, ENABLE);
+	NVIC_ClearPendingIRQ(RIT_IRQn);
+	NVIC_EnableIRQ(RIT_IRQn);
+}
+
+/*****************************************************************************/
+/***************** Accelerometer Helper Functions ****************************/
+/*****************************************************************************/
 void updateAccSensor(void) {
 	NVIC_DisableIRQ(EINT3_IRQn);
 	acc_read(&xReading, &yReading, &zReading);
@@ -107,41 +124,8 @@ void updateAccSensor(void) {
 	zReading = zReading + zoff;
 }
 
-void updateTempSensor(void) {
-	temperatureReading = temp_read();
-}
-
-void updateLightSensor(void) {
-	lightReading = light_read();
-}
-
-void updateSensors(void) {
-	updateLightSensor();
-	updateTempSensor();
-	updateAccSensor();
-}
-
-void setLightThreshold(void) {
-	if (light_read() < 51) {
-		lightLowWarning = 1;
-		light_setLoThreshold(0);
-		light_setHiThreshold(51);
-	} else {
-		lightLowWarning = 0;
-		light_setLoThreshold(LIGHT_LOW_THRESHOLD);
-	}
-}
-
-void tempReadToString(char *str) {
-	char tempBuffer[5] = "";
-	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
-	strcat(str, tempBuffer);
-}
-
-void lightReadToString(char *str) {
-	char lightBuffer[9] = "";
-	sprintf(lightBuffer, "%4d", lightReading);
-	strcat(str, lightBuffer);
+int checkForMovement(void) {
+	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
 }
 
 void accReadToString(char* xStr, char* yStr, char* zStr) {
@@ -159,21 +143,169 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 //	strcat(zStr, "  ");
 }
 
+/*****************************************************************************/
+/***************** Temperature Helper Functions ****************************/
+/*****************************************************************************/
+void updateTempSensor(void) {
+	temperatureReading = temp_read();
+}
+
+void updateSensors(void) {
+	updateLightSensor();
+	updateTempSensor();
+	updateAccSensor();
+}
+
+void tempReadToString(char *str) {
+	char tempBuffer[5] = "";
+	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
+	strcat(str, tempBuffer);
+}
+
+/*****************************************************************************/
+/********************** Light Sensor Helper Functions ************************/
+/*****************************************************************************/
+void updateLightSensor(void) {
+	lightReading = light_read();
+}
+
+void setLightThreshold(void) {
+	if (light_read() <= LIGHT_LOW_THRESHOLD) {
+		lightLowWarning = 1;
+		light_setLoThreshold(0);
+		light_setHiThreshold(51);
+	} else {
+		lightLowWarning = 0;
+		light_setLoThreshold(LIGHT_LOW_THRESHOLD);
+	}
+}
+
+void lightReadToString(char *str) {
+	char lightBuffer[9] = "";
+	sprintf(lightBuffer, "%4d", lightReading);
+	strcat(str, lightBuffer);
+}
+
+/*****************************************************************************/
+/************************* OLED Helper Functions *****************************/
+/*****************************************************************************/
+void prepareMonitorReadingsOled(void) {
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
+	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void updateOledReadings(void) {
+
+	char tempString[10] = "";
+	tempReadToString(tempString);
+
+	char lightString[10] = "";
+	lightReadToString(lightString);
+
+	char xString[8] = "";
+	char yString[8] = "";
+	char zString[8] = "";
+	accReadToString(xString, yString, zString);
+
+	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 39, xString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 47, yString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 55, zString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void prepareMonitorOptionsOled(void) {
+	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void toggleToRequest(void) {
+	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	cancelOptionFlag = 0;
+}
+
+void toggleToCancel(void) {
+	oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	cancelOptionFlag = 1;
+}
+
+void switchToMonitorOptions(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	prepareMonitorOptionsOled();
+	cancelOptionFlag = 0;
+}
+
+void switchToMonitorReadings(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	prepareMonitorReadingsOled();
+	if (oledUpdatedFlag == 1) {
+		updateOledReadings();
+	}
+}
+
+/*****************************************************************************/
+/*************************** UART Helper Functions ***************************/
+/*****************************************************************************/
+void sendHelpRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
+	int i;
+	for (i = 0; i < 8; i++) {
+		pca9532_setLeds(0x1 << i, 0xFFFF);
+		pca9532_setLeds(0x8000 >> i, 0x0);
+		Timer0_Wait(25);
+	}
+	pca9532_setLeds(0x0, 0xFFFF);
+}
+
+void sendCancelLastRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
+	pca9532_setLeds(0xFFFF, 0xFFFF);
+	Timer0_Wait(200);
+	pca9532_setLeds(0x0, 0xFFFF);
+}
+
+void sendEmergencyRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
+	pca9532_setBlink0Period(151);
+	pca9532_setBlink0Leds(0xFFFF);
+}
+
+void sendCemsMessages(void) {
+	char str[37] = "";
+	sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+			temperatureReading / 10.0, lightReading, xReading, yReading,
+			zReading);
+
+	if (fireAlert == 1) {
+		UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
+	}
+
+	if (moveInDarkAlert == 1) {
+		UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+	}
+
+	UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+
+	sendCemsFlag = 0;
+}
+
+/*****************************************************************************/
+/********************** Additional Helper Functions ************************/
+/*****************************************************************************/
 static uint32_t getMsTick(void) {
 	return msTicks;
 }
 
-void pinsel_uart3(void) {
-	PINSEL_CFG_Type PinCfg;
-	PinCfg.Funcnum = 2;
-	PinCfg.Pinnum = 0;
-	PinCfg.Portnum = 0;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 1;
-	PINSEL_ConfigPin(&PinCfg);
-}
-
-void prepareStableState(void) {
+static void prepareStableState(void) {
 	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
 	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
 	segNum = 0; 						//Reset the segnum count to 0
@@ -192,17 +324,7 @@ void prepareStableState(void) {
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void enableRitRGBinterrupt(void) {
-	RIT_Cmd(LPC_RIT, ENABLE);
-	NVIC_ClearPendingIRQ(RIT_IRQn);
-	NVIC_EnableIRQ(RIT_IRQn);
-}
-
-int checkForMovement(void) {
-	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
-}
-
-void prepareMonitorState(void) {
+static void prepareMonitorState(void) {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 	sendHelpMsgFlag = 0;
 	cancelOptionFlag = 0;
@@ -321,14 +443,21 @@ static void init_uart(void) {
 	uartCfg.Parity = UART_PARITY_NONE;
 	uartCfg.Stopbits = UART_STOPBIT_1;
 	//pin select for uart3;
-	pinsel_uart3();
+	PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
+
 	//supply power & setup working parameters for uart3
 	UART_Init(LPC_UART3, &uartCfg);
 	//enable transmit for uart3
 	UART_TxCmd(LPC_UART3, ENABLE);
 }
 
-static void initRitInterrupt(void) {
+static void initRit(void) {
 	RIT_Init(LPC_RIT );
 	RIT_TimerClearCmd(LPC_RIT, ENABLE);
 }
@@ -350,6 +479,25 @@ static void initTimer1Interrupt(void) {
 
 	NVIC_ClearPendingIRQ(TIMER1_IRQn);
 	NVIC_EnableIRQ(TIMER1_IRQn);
+}
+
+static void initTimer0Interrupt(void) {
+	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(5, 4, 0));
+}
+
+static void initEint0Interrupt(void) {
+	LPC_SC ->EXTINT = 1;
+	LPC_SC ->EXTMODE = 1;
+	LPC_SC ->EXTPOLAR = 0;
+	NVIC_ClearPendingIRQ(EINT0_IRQn);
+	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 2, 0));
+	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
+}
+
+static void initEint3Interrupt(void) {
+	NVIC_ClearPendingIRQ(EINT3_IRQn);
+	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
+	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
 }
 
 static void initBoardPosition(void) {
@@ -375,9 +523,12 @@ static void initAll(void) {
 	light_clearIrqStatus();
 	setLightThreshold();
 	temp_init(getMsTick);
-	initRitInterrupt();
+	initRit();
 	initTimer1Interrupt();
 	initBoardPosition();
+	initEint0Interrupt();
+	initEint3Interrupt();
+	initTimer0Interrupt();
 }
 
 /*****************************************************************************/
@@ -412,7 +563,6 @@ void RIT_IRQHandler(void) {
 }
 
 void EINT0_IRQHandler(void) {
-//	printf("eint0 handler \n");
 	sendHelpMsgFlag = 1;
 	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
@@ -435,7 +585,7 @@ void EINT3_IRQHandler(void) {
 		LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 		light_clearIrqStatus();
 	}
-	NVIC_ClearPendingIRQ(EINT3_IRQn);
+//	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
 void TIMER1_IRQHandler(void) {
@@ -454,118 +604,6 @@ void TIMER1_IRQHandler(void) {
 	}
 }
 
-/*****************************************************************************/
-/************************* OLED Helper Functions *****************************/
-/*****************************************************************************/
-void prepareMonitorReadingsOled(void) {
-	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
-	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
-void updateOledReadings(void) {
-
-	char tempString[10] = "";
-	tempReadToString(tempString);
-
-	char lightString[10] = "";
-	lightReadToString(lightString);
-
-	char xString[8] = "";
-	char yString[8] = "";
-	char zString[8] = "";
-	accReadToString(xString, yString, zString);
-
-	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 39, xString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 47, yString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 55, zString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
-void prepareMonitorOptionsOled(void) {
-	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
-void toggleToRequest(void) {
-	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	cancelOptionFlag = 0;
-}
-
-void toggleToCancel(void) {
-	oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	cancelOptionFlag = 1;
-}
-
-void switchToMonitorOptions(void) {
-	oled_clearScreen(OLED_COLOR_BLACK);
-	prepareMonitorOptionsOled();
-	cancelOptionFlag = 0;
-}
-
-void switchToMonitorReadings(void) {
-	oled_clearScreen(OLED_COLOR_BLACK);
-	prepareMonitorReadingsOled();
-	if (oledUpdatedFlag == 1) {
-		updateOledReadings();
-	}
-}
-
-/*****************************************************************************/
-/*************************** UART Helper Functions ***************************/
-/*****************************************************************************/
-void sendHelpRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
-	int i;
-	for (i = 0; i < 8; i++) {
-		pca9532_setLeds(0x1 << i, 0xFFFF);
-		pca9532_setLeds(0x8000 >> i, 0x0);
-		Timer0_Wait(25);
-	}
-	pca9532_setLeds(0x0, 0xFFFF);
-}
-
-void sendCancelLastRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
-	pca9532_setLeds(0xFFFF, 0xFFFF);
-	Timer0_Wait(200);
-	pca9532_setLeds(0x0, 0xFFFF);
-}
-
-void sendEmergencyRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
-	pca9532_setBlink0Period(151);
-	pca9532_setBlink0Leds(0xFFFF);
-}
-
-void sendCemsMessages(void) {
-	char str[37] = "";
-	sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
-			temperatureReading / 10.0, lightReading, xReading, yReading,
-			zReading);
-
-	if (fireAlert == 1) {
-		UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-	}
-
-	if (moveInDarkAlert == 1) {
-		UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
-	}
-
-	UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
-
-	sendCemsFlag = 0;
-}
-
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -576,20 +614,6 @@ int main(void) {
 	int joystickHold = 0;
 
 	initAll();
-
-	LPC_SC ->EXTINT = 1;
-	LPC_SC ->EXTMODE = 1;
-	LPC_SC ->EXTPOLAR = 0;
-
-	NVIC_ClearPendingIRQ(EINT0_IRQn);
-	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 2, 0));
-	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
-
-	NVIC_ClearPendingIRQ(EINT3_IRQn);
-	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 3, 0)); //NVIC_EncodePriority outputs 24 = 0x18
-	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
-
-	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(5, 4, 0));
 
 	while (1) {
 
