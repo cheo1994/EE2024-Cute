@@ -39,9 +39,6 @@ typedef enum {
 	MONITOR_READINGS, MONITOR_OPTIONS, STABLE
 } OLED_STATE;
 
-typedef enum {
-	TRUE, FALSE
-} BOOLEAN;
 
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
@@ -509,6 +506,7 @@ void prepareMonitorState() {
 	updateTempSensor();
 	updateSensors();
 	setLightThreshold();
+	oledStatus = MONITOR_READINGS;
 }
 
 void toggleToRequest() {
@@ -547,12 +545,13 @@ void sendEmergencyRequest() {
 	pca9532_setBlink0Leds(0xFFFF);
 }
 
-void switchToMonitor2() {
+void switchToMonitorOptions() {
 	oled_clearScreen(OLED_COLOR_BLACK);
 	initMonitor2Oled();
+	cancelOptionFlag = 0;
 }
 
-void switchToMonitor1() {
+void switchToMonitorReadings() {
 	oled_clearScreen(OLED_COLOR_BLACK);
 	initMonitorOled();
 	if (oledUpdatedFlag == 1) {
@@ -650,12 +649,11 @@ int main(void) {
 					&& (joystickStatus == JOYSTICK_RIGHT
 							|| joystickStatus == JOYSTICK_LEFT)) {
 				if (oledStatus == MONITOR_READINGS) {
-					switchToMonitor2();
+					switchToMonitorOptions();
 					oledStatus = MONITOR_OPTIONS;
-				} else if (oledStatus == MONITOR_READINGS) {
-					switchToMonitor1();
-					oledStatus = MONITOR_OPTIONS;
-					cancelOptionFlag = 0;
+				} else if (oledStatus == MONITOR_OPTIONS) {
+					switchToMonitorReadings();
+					oledStatus = MONITOR_READINGS;
 				}
 				joystickHold = 1;
 			}
