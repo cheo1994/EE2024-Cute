@@ -34,7 +34,7 @@
 typedef enum {
 	MONITOR_READINGS_STATE, STABLE_STATE
 } CUTE_STATE;
-
+typedef enum { false, true } bool;
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
 volatile int monitorFlag = 0;
@@ -503,6 +503,55 @@ void prepareMonitorState() {
 	setLightThreshold();
 }
 
+void toggleToRequest() {
+	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	cancelOptionFlag = 0;
+}
+
+void toggleToCancel() {
+	oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	cancelOptionFlag = 1;
+}
+
+void requestHelp() {
+	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
+	int i;
+	for (i = 0; i < 8; i++) {
+		pca9532_setLeds(0x1 << i, 0xFFFF);
+		pca9532_setLeds(0x8000 >> i, 0x0);
+		Timer0_Wait(25);
+	}
+	pca9532_setLeds(0x0, 0xFFFF);
+}
+
+void cancelLastRequest() {
+	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
+	pca9532_setLeds(0xFFFF, 0xFFFF);
+	Timer0_Wait(200);
+	pca9532_setLeds(0x0, 0xFFFF);
+}
+
+void emergencyCall() {
+	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
+	pca9532_setBlink0Period(151);
+	pca9532_setBlink0Leds(0xFFFF);
+}
+
+void switchToMonitor2() {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	initMonitor2Oled();
+}
+
+void switchToMonitor1() {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	initMonitorOled();
+	if (oledUpdatedFlag == 1) {
+		updateOled();
+	}
+}
+
 int main(void) {
 
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
@@ -585,14 +634,6 @@ int main(void) {
 			}
 
 			joystickStatus = joystick_read();
-//			if (joystickStatus == JOYSTICK_CENTER) {
-//				joystickHold = 0;
-//			}
-
-//			if (joystickStatus != JOYSTICK_RIGHT
-//					&& joystickStatus != JOYSTICK_LEFT
-//					&& joystickStatus != JOYSTICK_UP
-//					&& joystickStatus != JOYSTICK_DOWN) {
 			if (joystickStatus == 0) {
 				joystickHold = 0;
 			}
@@ -600,17 +641,11 @@ int main(void) {
 			if ((joystickHold == 0)
 					&& (joystickStatus == JOYSTICK_RIGHT
 							|| joystickStatus == JOYSTICK_LEFT)) {
-//				printf("joystick moved left or right\n");
 				if (currentScreen == 0) {
-					oled_clearScreen(OLED_COLOR_BLACK);
-					initMonitor2Oled();
+					switchToMonitor2();
 					currentScreen = 1;
 				} else if (currentScreen == 1) {
-					oled_clearScreen(OLED_COLOR_BLACK);
-					initMonitorOled();
-					if (oledUpdatedFlag == 1) {
-						updateOled();
-					}
+					switchToMonitor1();
 					currentScreen = 0;
 					cancelOptionFlag = 0;
 				}
@@ -619,38 +654,17 @@ int main(void) {
 
 			if (currentScreen == 1) {
 				if (joystickHold == 0 && joystickStatus == JOYSTICK_UP) {
-					oled_putString(0, 12, "Request <", OLED_COLOR_WHITE,
-							OLED_COLOR_BLACK);
-					oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE,
-							OLED_COLOR_BLACK);
-					cancelOptionFlag = 0;
+					toggleToRequest();
 					joystickHold = 1;
 				} else if (joystickHold == 0 && joystickStatus == JOYSTICK_DOWN) {
-					oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE,
-							OLED_COLOR_BLACK);
-					oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE,
-							OLED_COLOR_BLACK);
-					cancelOptionFlag = 1;
+					toggleToCancel();
 					joystickHold = 1;
 				}
 				if (joystickHold == 0 && joystickStatus == JOYSTICK_CENTER) {
 					if (cancelOptionFlag == 0) {
-						UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n",
-								18, BLOCKING);
-						int i;
-						for (i = 0; i < 8; i++) {
-							pca9532_setLeds(0x1 << i, 0xFFFF);
-							pca9532_setLeds(0x8000 >> i, 0x0);
-							Timer0_Wait(25);
-						}
-						pca9532_setLeds(0x0, 0xFFFF);
+						requestHelp();
 					} else if (cancelOptionFlag == 1) {
-						UART_Send(LPC_UART3,
-								(uint8_t *) "Cancel last request.\r\n", 22,
-								BLOCKING);
-						pca9532_setLeds(0xFFFF, 0xFFFF);
-						Timer0_Wait(200);
-						pca9532_setLeds(0x0, 0xFFFF);
+						cancelLastRequest();
 					}
 					joystickHold = 1;
 				}
@@ -658,10 +672,7 @@ int main(void) {
 			}
 
 			if (sendHelpMsgFlag == 1) {
-				UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14,
-						BLOCKING);
-				pca9532_setBlink0Period(151);
-				pca9532_setBlink0Leds(0xFFFF);
+				emergencyCall();
 				sendHelpMsgFlag = 0;
 			}
 
