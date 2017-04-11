@@ -33,7 +33,7 @@
 /*****************************************************************************/
 /***************************** Definitions ***********************************/
 /*****************************************************************************/
-#define TEMPERATURE_THRESHOLD 320 // 290 for 29.0 Degree celcius
+#define TEMPERATURE_THRESHOLD 320
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
 #define TEMP_SCALAR_DIV10 1
 #define TEMP_HALF_PERIODS 340
