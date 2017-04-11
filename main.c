@@ -39,9 +39,14 @@ typedef enum {
 	MONITOR_READINGS, MONITOR_OPTIONS, STABLE
 } OLED_STATE;
 
+typedef enum {
+	TRUE, FALSE
+} BOOLEAN;
+
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
 CUTE_STATE cuteStatus = STABLE_STATE;
+OLED_STATE oledStatus = STABLE;
 uint32_t lightReading = 1;
 int32_t temperatureReading;
 volatile int oneSecFlag = 0;
@@ -60,7 +65,6 @@ volatile int sendCemsFlag = 0;
 volatile int sendHelpMsgFlag = 0;
 volatile int cancelHelpMsgFlag = 0;
 volatile int toggleBlink = 0;
-int currentScreen = 0;
 int oledUpdatedFlag = 0;
 int32_t xoff = 0;
 int32_t yoff = 0;
@@ -459,7 +463,7 @@ void prepareStableState() {
 	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
 	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
 	//used for 2nd screen
-	currentScreen = 0;
+	oledStatus = STABLE;
 	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
 	pca9532_setLeds(0x0, 0xFFFF);
 }
@@ -519,7 +523,7 @@ void toggleToCancel() {
 	cancelOptionFlag = 1;
 }
 
-void requestHelp() {
+void sendHelpRequest() {
 	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
 	int i;
 	for (i = 0; i < 8; i++) {
@@ -530,14 +534,14 @@ void requestHelp() {
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void cancelLastRequest() {
+void sendCancelLastRequest() {
 	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
 	pca9532_setLeds(0xFFFF, 0xFFFF);
 	Timer0_Wait(200);
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void emergencyCall() {
+void sendEmergencyRequest() {
 	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
 	pca9532_setBlink0Period(151);
 	pca9532_setBlink0Leds(0xFFFF);
@@ -611,7 +615,7 @@ int main(void) {
 			if (updateOledFlag == 1) {
 				updateSensors();
 //				updateTempReadingFlag = 1;
-				if (currentScreen == 0) {
+				if (oledStatus == MONITOR_READINGS) {
 					updateOled();
 				}
 				oledUpdatedFlag = 1;
@@ -645,18 +649,18 @@ int main(void) {
 			if ((joystickHold == 0)
 					&& (joystickStatus == JOYSTICK_RIGHT
 							|| joystickStatus == JOYSTICK_LEFT)) {
-				if (currentScreen == 0) {
+				if (oledStatus == MONITOR_READINGS) {
 					switchToMonitor2();
-					currentScreen = 1;
-				} else if (currentScreen == 1) {
+					oledStatus = MONITOR_OPTIONS;
+				} else if (oledStatus == MONITOR_READINGS) {
 					switchToMonitor1();
-					currentScreen = 0;
+					oledStatus = MONITOR_OPTIONS;
 					cancelOptionFlag = 0;
 				}
 				joystickHold = 1;
 			}
 
-			if (currentScreen == 1) {
+			if (oledStatus == MONITOR_OPTIONS) {
 				if (joystickHold == 0 && joystickStatus == JOYSTICK_UP) {
 					toggleToRequest();
 					joystickHold = 1;
@@ -666,9 +670,9 @@ int main(void) {
 				}
 				if (joystickHold == 0 && joystickStatus == JOYSTICK_CENTER) {
 					if (cancelOptionFlag == 0) {
-						requestHelp();
+						sendHelpRequest();
 					} else if (cancelOptionFlag == 1) {
-						cancelLastRequest();
+						sendCancelLastRequest();
 					}
 					joystickHold = 1;
 				}
@@ -676,7 +680,7 @@ int main(void) {
 			}
 
 			if (sendHelpMsgFlag == 1) {
-				emergencyCall();
+				sendEmergencyRequest();
 				sendHelpMsgFlag = 0;
 			}
 
