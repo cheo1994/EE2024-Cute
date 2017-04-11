@@ -30,11 +30,17 @@
 #include "light.h"
 #include "temp.h"
 
+/*****************************************************************************/
+/***************************** Definitions ***********************************/
+/*****************************************************************************/
 #define TEMPERATURE_THRESHOLD 320 // 290 for 29.0 Degree celcius
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
 #define TEMP_SCALAR_DIV10 1
 #define TEMP_HALF_PERIODS 340
 
+/*****************************************************************************/
+/**************************** Type Definitions *******************************/
+/*****************************************************************************/
 typedef enum {
 	MONITOR_STATE, STABLE_STATE
 } CUTE_STATE;
@@ -43,12 +49,16 @@ typedef enum {
 	MONITOR_READINGS, MONITOR_OPTIONS, STABLE
 } OLED_STATE;
 
+/*****************************************************************************/
+/*************************** Variable Declarations ***************************/
+/*****************************************************************************/
+
 volatile uint32_t msTicks = 0;
 CUTE_STATE cuteStatus = STABLE_STATE;
 OLED_STATE oledStatus = STABLE;
 uint32_t lightReading;
 int32_t temperatureReading;
-uint8_t lightLowWarning;
+volatile int lightLowWarningFlag;
 uint8_t fireAlert = 0;
 uint8_t moveInDarkAlert = 0;
 int ritInterruptEnabledFlag = 0;
@@ -56,6 +66,9 @@ int cancelOptionFlag = 0;
 int8_t xReading;
 int8_t yReading;
 int8_t zReading;
+int32_t xoff = 0;
+int32_t yoff = 0;
+int32_t zoff = 0;
 int NNN = 0;
 volatile int segNum = 0;
 volatile int updateOledFlag = 0;
@@ -64,20 +77,15 @@ volatile int sendHelpMsgFlag = 0;
 volatile int cancelHelpMsgFlag = 0;
 volatile int toggleBlink = 0;
 int oledUpdatedFlag = 0;
-int32_t xoff = 0;
-int32_t yoff = 0;
-int32_t zoff = 0;
 char* monitorMsg = "Entering MONITOR Mode.\r\n";
 char* darknessMsg = "Movement in darkness was Detected.\r\n";
 char* fireMsg = "Fire was Detected.\r\n";
 int darknessMsgLen = 36;
 int fireMsgLen = 20;
 int monitorMsgLen = 24;
-
 int32_t temp_t1 = 0;
 int32_t temp_t2 = 0;
 int temp_count = 0;
-
 static uint8_t invertedChars[] = {
 /* digits 0 - 9 inverted */
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
@@ -118,11 +126,11 @@ void updateLightSensor(void) {
 
 void setLightThreshold(void) {
 	if (light_read() <= LIGHT_LOW_THRESHOLD) {
-		lightLowWarning = 1;
+		lightLowWarningFlag = 1;
 		light_setLoThreshold(0);
 		light_setHiThreshold(51);
 	} else {
-		lightLowWarning = 0;
+		lightLowWarningFlag = 0;
 		light_setLoThreshold(LIGHT_LOW_THRESHOLD);
 	}
 }
@@ -329,16 +337,16 @@ static void prepareStableState(void) {
 	fireAlert = 0; 						//Clears the "fire alert" flag
 	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
 	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
-	lightLowWarning = 0;				//Clears the "low light warning" flag
+	lightLowWarningFlag = 0;			//Clears the "low light warning" flag
 	offBlueLed();
 	offRedLed();
 	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
 	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
 	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
 	//used for 2nd screen
-	oledStatus = STABLE;
-	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
-	pca9532_setLeds(0x0, 0xFFFF);
+	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
+	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
+	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
 }
 
 static void prepareMonitorState(void) {
@@ -589,12 +597,12 @@ void EINT0_IRQHandler(void) {
 
 void EINT3_IRQHandler(void) {
 	if (((LPC_GPIOINT->IO2IntStatF >> 5) & 0x1)) {
-		if (lightLowWarning == 0) {
-			lightLowWarning = 1;
+		if (lightLowWarningFlag == 0) {
+			lightLowWarningFlag = 1;
 			light_setLoThreshold(0);
 			light_setHiThreshold(51);
-		} else if (lightLowWarning == 1) {
-			lightLowWarning = 0;
+		} else if (lightLowWarningFlag == 1) {
+			lightLowWarningFlag = 0;
 			light_setHiThreshold(3891);
 			light_setLoThreshold(50);
 		}
@@ -692,7 +700,7 @@ int main(void) {
 				}
 			}
 
-			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
+			if (moveInDarkAlert == 0 && lightLowWarningFlag == 1) {
 				updateAccSensor();
 				if (checkForMovement()) {
 					moveInDarkAlert = 1;
