@@ -24,7 +24,9 @@
 #include "pca9532.h"
 #include "acc.h"
 #include "oled.h"
+#include "oled_helper.h"
 #include "rgb.h"
+#include "rgb_helper.h"
 #include "led7seg.h"
 #include "light.h"
 #include "temp.h"
@@ -127,18 +129,6 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 	sprintf(zBuffer, "%3d", zReading);
 	strcat(zStr, zBuffer);
 //	strcat(zStr, "  ");
-}
-
-static void initMonitorOled() {
-	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
-	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 void initMonitor2Oled() {
@@ -480,10 +470,10 @@ void prepareMonitorState() {
 	sendHelpMsgFlag = 0;
 	cancelOptionFlag = 0;
 	TIM_Cmd(LPC_TIM1, ENABLE);
-	updateTempSensor();
-	led7seg_setChar(invertedChars[0], TRUE);
-	updateSensors();
 	initMonitorOled();
+	led7seg_setChar(invertedChars[0], TRUE);
+	updateTempSensor();
+	updateSensors();
 	lightThresholdInit();
 }
 
@@ -538,9 +528,9 @@ int main(void) {
 			sendCemsMessages();
 
 			if (oneSecFlag == 1) {
-				updateTempSensor();
 				oneSecFlag = 0;
 				led7seg_setChar(invertedChars[segNum], TRUE);
+				updateTempSensor();
 			}
 			if (updateOledFlag == 1) {
 				updateSensors();
