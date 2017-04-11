@@ -74,11 +74,14 @@ int fireMsgLen = 20;
 int monitorMsgLen = 24;
 
 static uint8_t invertedChars[] = {
-/* digits 0 - 9 */
+/* digits 0 - 9 inverted */
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
-/* A - F */
+/* A - F inverted */
 0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA };
 
+/*****************************************************************************/
+/*************************** RGB Helper Functions ***************************/
+/*****************************************************************************/
 void offRedLed(void) {
 	GPIO_ClearValue(2, 1);
 }
@@ -153,31 +156,6 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 	sprintf(zBuffer, "%3d", zReading);
 	strcat(zStr, zBuffer);
 //	strcat(zStr, "  ");
-}
-
-void prepareMonitorOptionsOled() {
-	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
-static void updateOledReadings() {
-
-	char tempString[10] = "";
-	tempReadToString(tempString);
-
-	char lightString[10] = "";
-	lightReadToString(lightString);
-
-	char xString[8] = "";
-	char yString[8] = "";
-	char zString[8] = "";
-	accReadToString(xString, yString, zString);
-
-	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 39, xString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 47, yString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(20, 55, zString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 static uint32_t getMsTick(void) {
@@ -434,18 +412,6 @@ void TIMER1_IRQHandler(void) {
 	}
 }
 
-void prepareMonitorReadingsOled(void) {
-	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
-	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-}
-
 void prepareStableState() {
 	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
 	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
@@ -463,27 +429,6 @@ void prepareStableState() {
 	oledStatus = STABLE;
 	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
 	pca9532_setLeds(0x0, 0xFFFF);
-}
-
-void sendCemsMessages() {
-	if (sendCemsFlag == 1) {
-		char str[37] = "";
-		sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
-				temperatureReading / 10.0, lightReading, xReading, yReading,
-				zReading);
-
-		if (fireAlert == 1) {
-			UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
-		}
-
-		if (moveInDarkAlert == 1) {
-			UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
-		}
-
-		UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
-
-		sendCemsFlag = 0;
-	}
 }
 
 void enableRitRGBinterrupt() {
@@ -509,18 +454,75 @@ void prepareMonitorState() {
 	oledStatus = MONITOR_READINGS;
 }
 
-void toggleToRequest() {
+/*****************************************************************************/
+/************************* OLED Helper Functions *****************************/
+/*****************************************************************************/
+void prepareMonitorReadingsOled(void) {
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
+	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void updateOledReadings(void) {
+
+	char tempString[10] = "";
+	tempReadToString(tempString);
+
+	char lightString[10] = "";
+	lightReadToString(lightString);
+
+	char xString[8] = "";
+	char yString[8] = "";
+	char zString[8] = "";
+	accReadToString(xString, yString, zString);
+
+	oled_putString(35, 12, lightString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(35, 26, tempString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 39, xString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 47, yString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(20, 55, zString, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void prepareMonitorOptionsOled(void) {
+	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+}
+
+void toggleToRequest(void) {
 	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 39, "Cancel   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	cancelOptionFlag = 0;
 }
 
-void toggleToCancel() {
+void toggleToCancel(void) {
 	oled_putString(0, 12, "Request  ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 39, "Cancel  <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	cancelOptionFlag = 1;
 }
 
+void switchToMonitorOptions(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	prepareMonitorOptionsOled();
+	cancelOptionFlag = 0;
+}
+
+void switchToMonitorReadings(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);
+	prepareMonitorReadingsOled();
+	if (oledUpdatedFlag == 1) {
+		updateOledReadings();
+	}
+}
+
+/*****************************************************************************/
+/*************************** UART Helper Functions ***************************/
+/*****************************************************************************/
 void sendHelpRequest() {
 	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
 	int i;
@@ -545,17 +547,24 @@ void sendEmergencyRequest() {
 	pca9532_setBlink0Leds(0xFFFF);
 }
 
-void switchToMonitorOptions() {
-	oled_clearScreen(OLED_COLOR_BLACK);
-	prepareMonitorOptionsOled();
-	cancelOptionFlag = 0;
-}
+void sendCemsMessages() {
+	if (sendCemsFlag == 1) {
+		char str[37] = "";
+		sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
+				temperatureReading / 10.0, lightReading, xReading, yReading,
+				zReading);
 
-void switchToMonitorReadings() {
-	oled_clearScreen(OLED_COLOR_BLACK);
-	prepareMonitorReadingsOled();
-	if (oledUpdatedFlag == 1) {
-		updateOledReadings();
+		if (fireAlert == 1) {
+			UART_Send(LPC_UART3, fireMsg, fireMsgLen, BLOCKING);
+		}
+
+		if (moveInDarkAlert == 1) {
+			UART_Send(LPC_UART3, darknessMsg, darknessMsgLen, BLOCKING);
+		}
+
+		UART_Send(LPC_UART3, (uint8_t *) str, strlen(str), BLOCKING);
+
+		sendCemsFlag = 0;
 	}
 }
 
