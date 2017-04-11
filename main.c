@@ -6,9 +6,10 @@
  *   All rights reserved.
  *
  **************************/
-/******************************************************************************
- * Includes
- *****************************************************************************/
+
+/*****************************************************************************/
+/**************************** Includes ***************************************/
+/*****************************************************************************/
 #include "stdio.h"
 #include "string.h"
 #include "stdlib.h"
@@ -24,16 +25,14 @@
 #include "pca9532.h"
 #include "acc.h"
 #include "oled.h"
-#include "oled_helper.h"
 #include "rgb.h"
-#include "rgb_helper.h"
 #include "led7seg.h"
 #include "light.h"
 #include "temp.h"
 
 #define TEMPERATURE_ALERT 290 // 290 for 29.0 Degree celcius
 typedef enum {
-	MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE
+	MONITOR_READINGS_STATE, STABLE_STATE
 } CUTE_STATE;
 
 volatile uint32_t msTicks = 0;
@@ -59,11 +58,6 @@ volatile int cancelHelpMsgFlag = 0;
 volatile int toggleBlink = 0;
 int currentScreen = 0;
 int oledUpdatedFlag = 0;
-uint8_t* light_buffer[15];
-uint8_t* temp_buffer[15];
-uint8_t* x_buffer[15];
-uint8_t* y_buffer[15];
-uint8_t* z_buffer[15];
 int32_t xoff = 0;
 int32_t yoff = 0;
 int32_t zoff = 0;
@@ -79,6 +73,22 @@ static uint8_t invertedChars[] = {
 0x24, 0x7D, 0xE0, 0x70, 0x39, 0x32, 0x22, 0x7C, 0x20, 0x30,
 /* A - F */
 0x28, 0x23, 0xA6, 0x61, 0xA2, 0xAA };
+
+void offRedLed(void) {
+	GPIO_ClearValue(2, 1);
+}
+
+void onRedLed(void) {
+	GPIO_SetValue(2, 1);
+}
+
+void offBlueLed(void) {
+	GPIO_ClearValue(0, (1 << 26));
+}
+
+void onBlueLed(void) {
+	GPIO_SetValue(0, (1 << 26));
+}
 
 void updateAccSensor() {
 	NVIC_DisableIRQ(EINT3_IRQn);
@@ -103,7 +113,16 @@ static void updateSensors() {
 //	updateTempSensor();
 	updateAccSensor();
 }
-
+void setLightThreshold() {
+	if (light_read() < 51) {
+		lightLowWarning = 1;
+		light_setLoThreshold(0);
+		light_setHiThreshold(51);
+	} else {
+		lightLowWarning = 0;
+		light_setLoThreshold(50);
+	}
+}
 void tempReadToString(char *str) {
 	char tempBuffer[5] = "";
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
@@ -169,10 +188,176 @@ void pinsel_uart3(void) {
 	PinCfg.Pinnum = 1;
 	PINSEL_ConfigPin(&PinCfg);
 }
+/*****************************************************************************/
+/**************************** Initializers ***********************************/
+/*****************************************************************************/
+static void init_ssp(void) {
+	SSP_CFG_Type SSP_ConfigStruct;
+	PINSEL_CFG_Type PinCfg;
 
-/******************************************************************************
- * Handlers
- *****************************************************************************/
+	/*
+	 * Initialize SPI pin connect
+	 * P0.7 - SCK;
+	 * P0.8 - MISO
+	 * P0.9 - MOSI
+	 * P2.2 - SSEL - used as GPIO
+	 */
+	PinCfg.Funcnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 7;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 8;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 9;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Funcnum = 0;
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 2;
+	PINSEL_ConfigPin(&PinCfg);
+
+	SSP_ConfigStructInit(&SSP_ConfigStruct);
+
+	// Initialize SSP peripheral with parameter given in structure above
+	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
+
+	// Enable SSP peripheral
+	SSP_Cmd(LPC_SSP1, ENABLE);
+
+}
+
+static void init_i2c(void) {
+	PINSEL_CFG_Type PinCfg;
+
+	/* Initialize I2C2 pin connect */
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 10;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 11;
+	PINSEL_ConfigPin(&PinCfg);
+
+	// Initialize I2C peripheral
+	I2C_Init(LPC_I2C2, 100000);
+
+	/* Enable I2C1 operation */
+	I2C_Cmd(LPC_I2C2, ENABLE);
+}
+
+static void init_GPIO(void) {
+	// Initialize sw3
+	PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 1;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 10;
+	PINSEL_ConfigPin(&PinCfg);
+
+	// Initialize sw4
+	PinCfg.Funcnum = 0;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 1;
+	PinCfg.Pinnum = 31;
+	PINSEL_ConfigPin(&PinCfg);
+	GPIO_SetDir(1, 1 << 31, 0);
+
+	// Initialize P2.5
+	PinCfg.Funcnum = 0;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 5;
+	PINSEL_ConfigPin(&PinCfg);
+	GPIO_SetDir(2, (1 << 5), 0);
+	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
+	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
+
+//	// Initialize P0.2
+//	PinCfg.Funcnum = 0;
+//	PinCfg.OpenDrain = 0;
+//	PinCfg.Pinmode = 0;
+//	PinCfg.Portnum = 0;
+//	PinCfg.Pinnum = 2;
+//	PINSEL_ConfigPin(&PinCfg);
+//	GPIO_SetDir(0, (1 << 2), 0);
+//	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
+//	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
+
+}
+
+static void init_uart(void) {
+	UART_CFG_Type uartCfg;
+	uartCfg.Baud_rate = 115200;
+	uartCfg.Databits = UART_DATABIT_8;
+	uartCfg.Parity = UART_PARITY_NONE;
+	uartCfg.Stopbits = UART_STOPBIT_1;
+	//pin select for uart3;
+	pinsel_uart3();
+	//supply power & setup working parameters for uart3
+	UART_Init(LPC_UART3, &uartCfg);
+	//enable transmit for uart3
+	UART_TxCmd(LPC_UART3, ENABLE);
+}
+
+static void initRitInterrupt() {
+	RIT_Init(LPC_RIT );
+	RIT_TimerClearCmd(LPC_RIT, ENABLE);
+}
+
+static void initTimer1Interrupt() {
+	TIM_MATCHCFG_Type timMatchCfg;
+	timMatchCfg.MatchChannel = 0;
+	timMatchCfg.IntOnMatch = 1;
+	timMatchCfg.StopOnMatch = 0;
+	timMatchCfg.ResetOnMatch = 1;
+	timMatchCfg.ExtMatchOutputType = 0;
+	timMatchCfg.MatchValue = 1000;
+	TIM_ConfigMatch(LPC_TIM1, &timMatchCfg);
+
+	TIM_TIMERCFG_Type timTimerCfg;
+	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
+	timTimerCfg.PrescaleValue = 1000;
+	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &timTimerCfg);
+
+	NVIC_ClearPendingIRQ(TIMER1_IRQn);
+	NVIC_EnableIRQ(TIMER1_IRQn);
+}
+
+void initBoardPosition() {
+	acc_read(&xReading, &yReading, &zReading);
+	xoff = 0 - xReading;
+	yoff = 0 - yReading;
+	zoff = 64 - zReading;
+}
+
+static void initAll() {
+	init_i2c();
+	init_ssp();
+	init_GPIO();
+	pca9532_init();
+	joystick_init();
+	acc_init();
+	oled_init();
+	led7seg_init();
+	rgb_init();
+	init_uart();
+	light_enable();
+	light_setRange(LIGHT_RANGE_4000);
+	light_clearIrqStatus();
+	setLightThreshold();
+	temp_init(getMsTick);
+	initRitInterrupt();
+	initTimer1Interrupt();
+	initBoardPosition();
+}
+
+
+/*****************************************************************************/
+/******************************* Handlers ************************************/
+/*****************************************************************************/
 void SysTick_Handler(void) {
 	msTicks++;
 }
@@ -244,168 +429,16 @@ void TIMER1_IRQHandler(void) {
 	}
 }
 
-void lightThresholdInit() {
-	if (light_read() < 51) {
-		lightLowWarning = 1;
-		light_setLoThreshold(0);
-		light_setHiThreshold(51);
-	} else {
-		lightLowWarning = 0;
-		light_setLoThreshold(50);
-	}
-}
-
-static void init_ssp(void) {
-	SSP_CFG_Type SSP_ConfigStruct;
-	PINSEL_CFG_Type PinCfg;
-
-	/*
-	 * Initialize SPI pin connect
-	 * P0.7 - SCK;
-	 * P0.8 - MISO
-	 * P0.9 - MOSI
-	 * P2.2 - SSEL - used as GPIO
-	 */
-	PinCfg.Funcnum = 2;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 0;
-	PinCfg.Pinnum = 7;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 8;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 9;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Funcnum = 0;
-	PinCfg.Portnum = 2;
-	PinCfg.Pinnum = 2;
-	PINSEL_ConfigPin(&PinCfg);
-
-	SSP_ConfigStructInit(&SSP_ConfigStruct);
-
-	// Initialize SSP peripheral with parameter given in structure above
-	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
-
-	// Enable SSP peripheral
-	SSP_Cmd(LPC_SSP1, ENABLE);
-
-}
-static void init_i2c(void) {
-	PINSEL_CFG_Type PinCfg;
-
-	/* Initialize I2C2 pin connect */
-	PinCfg.Funcnum = 2;
-	PinCfg.Pinnum = 10;
-	PinCfg.Portnum = 0;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 11;
-	PINSEL_ConfigPin(&PinCfg);
-
-	// Initialize I2C peripheral
-	I2C_Init(LPC_I2C2, 100000);
-
-	/* Enable I2C1 operation */
-	I2C_Cmd(LPC_I2C2, ENABLE);
-}
-static void init_GPIO(void) {
-	// Initialize sw3
-	PINSEL_CFG_Type PinCfg;
-	PinCfg.Funcnum = 1;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 2;
-	PinCfg.Pinnum = 10;
-	PINSEL_ConfigPin(&PinCfg);
-
-	// Initialize sw4
-	PinCfg.Funcnum = 0;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 1;
-	PinCfg.Pinnum = 31;
-	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(1, 1 << 31, 0);
-
-	// Initialize P2.5
-	PinCfg.Funcnum = 0;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 2;
-	PinCfg.Pinnum = 5;
-	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(2, (1 << 5), 0);
-	LPC_GPIOINT ->IO2IntEnF |= 1 << 5; // Enable GPIO interrupt for light sensor
-	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
-
-//	// Initialize P0.2
-//	PinCfg.Funcnum = 0;
-//	PinCfg.OpenDrain = 0;
-//	PinCfg.Pinmode = 0;
-//	PinCfg.Portnum = 0;
-//	PinCfg.Pinnum = 2;
-//	PINSEL_ConfigPin(&PinCfg);
-//	GPIO_SetDir(0, (1 << 2), 0);
-//	LPC_GPIOINT ->IO0IntEnF |= 1 << 2; // Enable GPIO interrupt for temperature
-//	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
-
-}
-static void init_uart(void) {
-	UART_CFG_Type uartCfg;
-	uartCfg.Baud_rate = 115200;
-	uartCfg.Databits = UART_DATABIT_8;
-	uartCfg.Parity = UART_PARITY_NONE;
-	uartCfg.Stopbits = UART_STOPBIT_1;
-	//pin select for uart3;
-	pinsel_uart3();
-	//supply power & setup working parameters for uart3
-	UART_Init(LPC_UART3, &uartCfg);
-	//enable transmit for uart3
-	UART_TxCmd(LPC_UART3, ENABLE);
-}
-static void initRitInterrupt() {
-	RIT_Init(LPC_RIT );
-	RIT_TimerClearCmd(LPC_RIT, ENABLE);
-}
-static void initUart3Interrupt() {
-	// enable UART interrupts to send/receive
-	LPC_UART3 ->IER |= UART_IER_RBRINT_EN;
-	LPC_UART3 ->IER |= UART_IER_THREINT_EN;
-	NVIC_EnableIRQ(UART3_IRQn);
-}
-static void initTimer1Interrupt() {
-	TIM_MATCHCFG_Type timMatchCfg;
-	timMatchCfg.MatchChannel = 0;
-	timMatchCfg.IntOnMatch = 1;
-	timMatchCfg.StopOnMatch = 0;
-	timMatchCfg.ResetOnMatch = 1;
-	timMatchCfg.ExtMatchOutputType = 0;
-	timMatchCfg.MatchValue = 1000;
-	TIM_ConfigMatch(LPC_TIM1, &timMatchCfg);
-
-	TIM_TIMERCFG_Type timTimerCfg;
-	timTimerCfg.PrescaleOption = TIM_PRESCALE_USVAL;
-	timTimerCfg.PrescaleValue = 1000;
-	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &timTimerCfg);
-
-	NVIC_ClearPendingIRQ(TIMER1_IRQn);
-	NVIC_EnableIRQ(TIMER1_IRQn);
-}
-static void initAll() {
-	init_i2c();
-	init_ssp();
-	init_GPIO();
-	pca9532_init();
-	joystick_init();
-	acc_init();
-	oled_init();
-	led7seg_init();
-	rgb_init();
-	init_uart();
-	light_enable();
-	light_setRange(LIGHT_RANGE_4000);
-	light_clearIrqStatus();
-	lightThresholdInit();
-	temp_init(getMsTick);
+void initMonitorOled(void) {
+	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 26, "Temp :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_circle(67, 27, 2, OLED_COLOR_WHITE);
+	oled_putString(70, 27, "C", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 39, "x :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 47, "y :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	oled_putString(0, 55, "z :", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
 void prepareStableState() {
@@ -454,14 +487,7 @@ void enableRitRGBinterrupt() {
 	NVIC_EnableIRQ(RIT_IRQn);
 }
 
-void initBoardPosition() {
-	acc_read(&xReading, &yReading, &zReading);
-	xoff = 0 - xReading;
-	yoff = 0 - yReading;
-	zoff = 64 - zReading;
-}
-
-int checkForMovement(int8_t xReading, int8_t yReading, int8_t zReading) {
+int checkForMovement(void) {
 	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
 }
 
@@ -474,7 +500,7 @@ void prepareMonitorState() {
 	led7seg_setChar(invertedChars[0], TRUE);
 	updateTempSensor();
 	updateSensors();
-	lightThresholdInit();
+	setLightThreshold();
 }
 
 int main(void) {
@@ -487,9 +513,6 @@ int main(void) {
 	int joystickHold = 0;
 
 	initAll();
-	initRitInterrupt();
-	initTimer1Interrupt();
-	initBoardPosition();
 
 	LPC_SC ->EXTINT = 1;
 	LPC_SC ->EXTMODE = 1;
@@ -552,7 +575,7 @@ int main(void) {
 
 			if (moveInDarkAlert == 0 && lightLowWarning == 1) {
 				updateAccSensor();
-				if (checkForMovement(xReading, yReading, zReading)) {
+				if (checkForMovement()) {
 					moveInDarkAlert = 1;
 					if (ritInterruptEnabledFlag == 0) {
 						enableRitRGBinterrupt();
