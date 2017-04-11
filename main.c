@@ -30,7 +30,8 @@
 #include "light.h"
 #include "temp.h"
 
-#define TEMPERATURE_ALERT 290 // 290 for 29.0 Degree celcius
+#define TEMPERATURE_THRESHOLD 290 // 290 for 29.0 Degree celcius
+#define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
 typedef enum {
 	MONITOR_STATE, STABLE_STATE
 } CUTE_STATE;
@@ -117,7 +118,7 @@ void updateLightSensor(void) {
 
 void updateSensors(void) {
 	updateLightSensor();
-//	updateTempSensor();
+	updateTempSensor();
 	updateAccSensor();
 }
 
@@ -128,7 +129,7 @@ void setLightThreshold(void) {
 		light_setHiThreshold(51);
 	} else {
 		lightLowWarning = 0;
-		light_setLoThreshold(50);
+		light_setLoThreshold(LIGHT_LOW_THRESHOLD);
 	}
 }
 
@@ -209,7 +210,6 @@ void prepareMonitorState(void) {
 	TIM_Cmd(LPC_TIM1, ENABLE);
 	prepareMonitorReadingsOled();
 	led7seg_setChar(invertedChars[0], TRUE);
-	updateTempSensor();
 	updateSensors();
 	setLightThreshold();
 	oledStatus = MONITOR_READINGS;
@@ -631,7 +631,7 @@ int main(void) {
 				updateOledFlag = 0;
 			}
 
-			if (fireAlert == 0 && temperatureReading > TEMPERATURE_ALERT) {
+			if (fireAlert == 0 && temperatureReading > TEMPERATURE_THRESHOLD) {
 				fireAlert = 1;
 				if (ritInterruptEnabledFlag == 0) {
 					enableRitRGBinterrupt();
