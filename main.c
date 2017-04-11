@@ -98,30 +98,30 @@ void onBlueLed(void) {
 	GPIO_SetValue(0, (1 << 26));
 }
 
-void updateAccSensor() {
+void updateAccSensor(void) {
 	NVIC_DisableIRQ(EINT3_IRQn);
 	acc_read(&xReading, &yReading, &zReading);
 	NVIC_EnableIRQ(EINT3_IRQn);
 	xReading = xReading + xoff;
 	yReading = yReading + yoff;
 	zReading = zReading + zoff;
-
 }
 
-void updateTempSensor() {
+void updateTempSensor(void) {
 	temperatureReading = temp_read();
 }
 
-void updateLightSensor() {
+void updateLightSensor(void) {
 	lightReading = light_read();
 }
 
-static void updateSensors() {
+void updateSensors(void) {
 	updateLightSensor();
 //	updateTempSensor();
 	updateAccSensor();
 }
-void setLightThreshold() {
+
+void setLightThreshold(void) {
 	if (light_read() < 51) {
 		lightLowWarning = 1;
 		light_setLoThreshold(0);
@@ -131,6 +131,7 @@ void setLightThreshold() {
 		light_setLoThreshold(50);
 	}
 }
+
 void tempReadToString(char *str) {
 	char tempBuffer[5] = "";
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
@@ -171,6 +172,49 @@ void pinsel_uart3(void) {
 	PinCfg.Pinnum = 1;
 	PINSEL_ConfigPin(&PinCfg);
 }
+
+void prepareStableState(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
+	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
+	segNum = 0; 						//Reset the segnum count to 0
+	fireAlert = 0; 						//Clears the "fire alert" flag
+	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
+	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
+	lightLowWarning = 0;				//Clears the "low light warning" flag
+	offBlueLed();
+	offRedLed();
+	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
+	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
+	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
+	//used for 2nd screen
+	oledStatus = STABLE;
+	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
+	pca9532_setLeds(0x0, 0xFFFF);
+}
+
+void enableRitRGBinterrupt(void) {
+	RIT_Cmd(LPC_RIT, ENABLE);
+	NVIC_ClearPendingIRQ(RIT_IRQn);
+	NVIC_EnableIRQ(RIT_IRQn);
+}
+
+int checkForMovement(void) {
+	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
+}
+
+void prepareMonitorState(void) {
+	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
+	sendHelpMsgFlag = 0;
+	cancelOptionFlag = 0;
+	TIM_Cmd(LPC_TIM1, ENABLE);
+	prepareMonitorReadingsOled();
+	led7seg_setChar(invertedChars[0], TRUE);
+	updateTempSensor();
+	updateSensors();
+	setLightThreshold();
+	oledStatus = MONITOR_READINGS;
+}
+
 /*****************************************************************************/
 /**************************** Initializers ***********************************/
 /*****************************************************************************/
@@ -285,12 +329,12 @@ static void init_uart(void) {
 	UART_TxCmd(LPC_UART3, ENABLE);
 }
 
-static void initRitInterrupt() {
+static void initRitInterrupt(void) {
 	RIT_Init(LPC_RIT );
 	RIT_TimerClearCmd(LPC_RIT, ENABLE);
 }
 
-static void initTimer1Interrupt() {
+static void initTimer1Interrupt(void) {
 	TIM_MATCHCFG_Type timMatchCfg;
 	timMatchCfg.MatchChannel = 0;
 	timMatchCfg.IntOnMatch = 1;
@@ -309,14 +353,14 @@ static void initTimer1Interrupt() {
 	NVIC_EnableIRQ(TIMER1_IRQn);
 }
 
-void initBoardPosition() {
+static void initBoardPosition(void) {
 	acc_read(&xReading, &yReading, &zReading);
 	xoff = 0 - xReading;
 	yoff = 0 - yReading;
 	zoff = 64 - zReading;
 }
 
-static void initAll() {
+static void initAll(void) {
 	init_i2c();
 	init_ssp();
 	init_GPIO();
@@ -336,7 +380,6 @@ static void initAll() {
 	initTimer1Interrupt();
 	initBoardPosition();
 }
-
 
 /*****************************************************************************/
 /******************************* Handlers ************************************/
@@ -412,48 +455,6 @@ void TIMER1_IRQHandler(void) {
 	}
 }
 
-void prepareStableState() {
-	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
-	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
-	segNum = 0; 						//Reset the segnum count to 0
-	fireAlert = 0; 						//Clears the "fire alert" flag
-	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
-	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
-	lightLowWarning = 0;				//Clears the "low light warning" flag
-	offBlueLed();
-	offRedLed();
-	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
-	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
-	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
-	//used for 2nd screen
-	oledStatus = STABLE;
-	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
-	pca9532_setLeds(0x0, 0xFFFF);
-}
-
-void enableRitRGBinterrupt() {
-	RIT_Cmd(LPC_RIT, ENABLE);
-	NVIC_ClearPendingIRQ(RIT_IRQn);
-	NVIC_EnableIRQ(RIT_IRQn);
-}
-
-int checkForMovement(void) {
-	return abs(xReading) > 96 || abs(yReading) > 96 || abs(zReading) > 96;
-}
-
-void prepareMonitorState() {
-	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-	sendHelpMsgFlag = 0;
-	cancelOptionFlag = 0;
-	TIM_Cmd(LPC_TIM1, ENABLE);
-	prepareMonitorReadingsOled();
-	led7seg_setChar(invertedChars[0], TRUE);
-	updateTempSensor();
-	updateSensors();
-	setLightThreshold();
-	oledStatus = MONITOR_READINGS;
-}
-
 /*****************************************************************************/
 /************************* OLED Helper Functions *****************************/
 /*****************************************************************************/
@@ -523,7 +524,7 @@ void switchToMonitorReadings(void) {
 /*****************************************************************************/
 /*************************** UART Helper Functions ***************************/
 /*****************************************************************************/
-void sendHelpRequest() {
+void sendHelpRequest(void) {
 	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
 	int i;
 	for (i = 0; i < 8; i++) {
@@ -534,20 +535,20 @@ void sendHelpRequest() {
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void sendCancelLastRequest() {
+void sendCancelLastRequest(void) {
 	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
 	pca9532_setLeds(0xFFFF, 0xFFFF);
 	Timer0_Wait(200);
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void sendEmergencyRequest() {
+void sendEmergencyRequest(void) {
 	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
 	pca9532_setBlink0Period(151);
 	pca9532_setBlink0Leds(0xFFFF);
 }
 
-void sendCemsMessages() {
+void sendCemsMessages(void) {
 	if (sendCemsFlag == 1) {
 		char str[37] = "";
 		sprintf(str, "%03d_-_T%.1f_L%d_AX%d_AY%d_AZ%d\r\n", NNN++,
