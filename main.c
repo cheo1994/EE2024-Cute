@@ -36,9 +36,9 @@ typedef enum {
 } CUTE_STATE;
 
 typedef enum {
-	MONITOR_READINGS_STATE, MONITOR_OPTIONS_STATE, STABLE_STATE
+	MONITOR_READINGS, MONITOR_OPTIONS, STABLE
 } OLED_STATE;
-typedef enum { false, true } bool;
+
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
 CUTE_STATE cuteStatus = STABLE_STATE;
