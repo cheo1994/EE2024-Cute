@@ -30,7 +30,6 @@
 #include "temp.h"
 
 #define TEMPERATURE_ALERT 290 // 290 for 29.0 Degree celcius
-
 typedef enum {
 	MONITOR_READINGS_STATE, STABLE_STATE, MONITOR_OPTIONS_STATE
 } CUTE_STATE;
@@ -180,7 +179,6 @@ void pinsel_uart3(void) {
 	PinCfg.Pinnum = 1;
 	PINSEL_ConfigPin(&PinCfg);
 }
-
 
 /******************************************************************************
  * Handlers
@@ -436,6 +434,7 @@ void prepareStableState() {
 	//used for 2nd screen
 	currentScreen = 0;
 	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
+	pca9532_setLeds(0x0, 0xFFFF);
 }
 
 void sendCemsMessages() {
@@ -493,7 +492,7 @@ int main(void) {
 	SysTick_Config(SystemCoreClock / 1000);  // every 1ms
 
 	uint8_t sw4 = 1;
-	uint8_t joystickStatus = JOYSTICK_CENTER;
+	uint8_t joystickStatus = 0;
 	int sw4HoldStatus = 0;
 	int joystickHold = 0;
 
@@ -577,10 +576,11 @@ int main(void) {
 //				joystickHold = 0;
 //			}
 
-			if (joystickStatus != JOYSTICK_RIGHT
-					&& joystickStatus != JOYSTICK_LEFT
-					&& joystickStatus != JOYSTICK_UP
-					&& joystickStatus != JOYSTICK_DOWN) {
+//			if (joystickStatus != JOYSTICK_RIGHT
+//					&& joystickStatus != JOYSTICK_LEFT
+//					&& joystickStatus != JOYSTICK_UP
+//					&& joystickStatus != JOYSTICK_DOWN) {
+			if (joystickStatus == 0) {
 				joystickHold = 0;
 			}
 
@@ -620,26 +620,28 @@ int main(void) {
 					cancelOptionFlag = 1;
 					joystickHold = 1;
 				}
-			}
-
-			if (joyStickStatus == JOYSTICK_CENTER) {
-				if (cancelOptionFlag == 1) {
-					UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18,
-							BLOCKING);
-					int i;
-					for (i = 0; i < 8; i++) {
-						pca9532_setLeds(0x1 << i, 0xFFFF);
-						pca9532_setLeds(0x8000 >> i, 0x0);
-						Timer0_Wait(25);
+				if (joystickHold == 0 && joystickStatus == JOYSTICK_CENTER) {
+					if (cancelOptionFlag == 0) {
+						UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n",
+								18, BLOCKING);
+						int i;
+						for (i = 0; i < 8; i++) {
+							pca9532_setLeds(0x1 << i, 0xFFFF);
+							pca9532_setLeds(0x8000 >> i, 0x0);
+							Timer0_Wait(25);
+						}
+						pca9532_setLeds(0x0, 0xFFFF);
+					} else if (cancelOptionFlag == 1) {
+						UART_Send(LPC_UART3,
+								(uint8_t *) "Cancel last request.\r\n", 22,
+								BLOCKING);
+						pca9532_setLeds(0xFFFF, 0xFFFF);
+						Timer0_Wait(200);
+						pca9532_setLeds(0x0, 0xFFFF);
 					}
-					pca9532_setLeds(0x0, 0xFFFF);
-				} else if (cancelOptionFlag == 0) {
-					UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n",
-							22, BLOCKING);
-					pca9532_setLeds(0xFFFF, 0xFFFF);
-					Timer0_Wait(200);
-					pca9532_setLeds(0x0, 0xFFFF);
+					joystickHold = 1;
 				}
+
 			}
 
 			if (sendHelpMsgFlag == 1) {
