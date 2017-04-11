@@ -155,12 +155,12 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 //	strcat(zStr, "  ");
 }
 
-void initMonitor2Oled() {
+void prepareMonitorOptionsOled() {
 	oled_putString(0, 12, "Request <", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 39, "Cancel ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 }
 
-static void updateOled() {
+static void updateOledReadings() {
 
 	char tempString[10] = "";
 	tempReadToString(tempString);
@@ -434,7 +434,7 @@ void TIMER1_IRQHandler(void) {
 	}
 }
 
-void initMonitorOled(void) {
+void prepareMonitorReadingsOled(void) {
 	oled_putString(28, 0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(0, 12, "Light:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	oled_putString(65, 12, "Lux", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -501,7 +501,7 @@ void prepareMonitorState() {
 	sendHelpMsgFlag = 0;
 	cancelOptionFlag = 0;
 	TIM_Cmd(LPC_TIM1, ENABLE);
-	initMonitorOled();
+	prepareMonitorReadingsOled();
 	led7seg_setChar(invertedChars[0], TRUE);
 	updateTempSensor();
 	updateSensors();
@@ -547,15 +547,15 @@ void sendEmergencyRequest() {
 
 void switchToMonitorOptions() {
 	oled_clearScreen(OLED_COLOR_BLACK);
-	initMonitor2Oled();
+	prepareMonitorOptionsOled();
 	cancelOptionFlag = 0;
 }
 
 void switchToMonitorReadings() {
 	oled_clearScreen(OLED_COLOR_BLACK);
-	initMonitorOled();
+	prepareMonitorReadingsOled();
 	if (oledUpdatedFlag == 1) {
-		updateOled();
+		updateOledReadings();
 	}
 }
 
@@ -615,7 +615,7 @@ int main(void) {
 				updateSensors();
 //				updateTempReadingFlag = 1;
 				if (oledStatus == MONITOR_READINGS) {
-					updateOled();
+					updateOledReadings();
 				}
 				oledUpdatedFlag = 1;
 				updateOledFlag = 0;
