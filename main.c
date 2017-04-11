@@ -170,7 +170,7 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 }
 
 /*****************************************************************************/
-/***************** Temperature Helper Functions ****************************/
+/***************** Temperature Helper Functions *****************************/
 /*****************************************************************************/
 void updateTempSensor(void) {
 	temperatureReading = temp_read();
@@ -187,7 +187,6 @@ void tempReadToString(char *str) {
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
 	strcat(str, tempBuffer);
 }
-
 
 /*****************************************************************************/
 /************************* OLED Helper Functions *****************************/
@@ -255,11 +254,7 @@ void switchToMonitorReadings(void) {
 	}
 }
 
-/*****************************************************************************/
-/*************************** UART Helper Functions ***************************/
-/*****************************************************************************/
-void sendHelpRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
+void animateHelpRequest(void) {
 	int i;
 	for (i = 0; i < 8; i++) {
 		pca9532_setLeds(0x1 << i, 0xFFFF);
@@ -269,17 +264,36 @@ void sendHelpRequest(void) {
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void sendCancelLastRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
+/*****************************************************************************/
+/************************** 16-LED Helper Functions **************************/
+/*****************************************************************************/
+void animateCancelRequest(void) {
 	pca9532_setLeds(0xFFFF, 0xFFFF);
 	Timer0_Wait(200);
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-void sendEmergencyRequest(void) {
-	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
+void animateEmergencyRequest(void) {
 	pca9532_setBlink0Period(151);
 	pca9532_setBlink0Leds(0xFFFF);
+}
+
+/*****************************************************************************/
+/*************************** UART Helper Functions ***************************/
+/*****************************************************************************/
+void sendHelpRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "Requesting help.\r\n", 18, BLOCKING);
+	animateHelpRequest();
+}
+
+void sendCancelLastRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "Cancel last request.\r\n", 22, BLOCKING);
+	animateCancelRequest();
+}
+
+void sendEmergencyRequest(void) {
+	UART_Send(LPC_UART3, (uint8_t *) "*EMERGENCY!*\r\n", 14, BLOCKING);
+	animateEmergencyRequest();
 }
 
 void sendCemsMessages(void) {
