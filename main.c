@@ -32,12 +32,16 @@
 
 #define TEMPERATURE_ALERT 290 // 290 for 29.0 Degree celcius
 typedef enum {
-	MONITOR_READINGS_STATE, STABLE_STATE
+	MONITOR_STATE, STABLE_STATE
 } CUTE_STATE;
+
+typedef enum {
+	MONITOR_READINGS_STATE, MONITOR_OPTIONS_STATE, STABLE_STATE
+} OLED_STATE;
 typedef enum { false, true } bool;
 volatile uint32_t msTicks = 0;
 volatile uint32_t swTicks;
-volatile int monitorFlag = 0;
+CUTE_STATE cuteStatus = STABLE_STATE;
 uint32_t lightReading = 1;
 int32_t temperatureReading;
 volatile int oneSecFlag = 0;
@@ -581,7 +585,7 @@ int main(void) {
 
 		prepareStableState();
 
-		while (monitorFlag == 0) {
+		while (cuteStatus == STABLE_STATE) {
 
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
@@ -590,13 +594,13 @@ int main(void) {
 			}
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
-				monitorFlag = 1;
+				cuteStatus = MONITOR_STATE;
 				prepareMonitorState();
 				sw4HoldStatus = 1;
 			}
 		}
 
-		while (monitorFlag == 1) {
+		while (cuteStatus == MONITOR_STATE) {
 			sendCemsMessages();
 
 			if (oneSecFlag == 1) {
@@ -679,7 +683,7 @@ int main(void) {
 			sw4 = (GPIO_ReadValue(1) >> 31) & 0x01;
 
 			if (sw4 == 0 && sw4HoldStatus == 0) {
-				monitorFlag = 0;
+				cuteStatus = STABLE_STATE;
 				sw4HoldStatus = 1;
 				RIT_Cmd(LPC_RIT, DISABLE);
 			}
