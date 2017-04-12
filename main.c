@@ -275,6 +275,9 @@ void switchToMonitorReadings(void) {
 	}
 }
 
+/*****************************************************************************/
+/************************** 16-LED Helper Functions **************************/
+/*****************************************************************************/
 void animateHelpRequest(void) {
 	int i;
 	for (i = 0; i < 8; i++) {
@@ -285,9 +288,6 @@ void animateHelpRequest(void) {
 	pca9532_setLeds(0x0, 0xFFFF);
 }
 
-/*****************************************************************************/
-/************************** 16-LED Helper Functions **************************/
-/*****************************************************************************/
 void animateCancelRequest(void) {
 	pca9532_setLeds(0xFFFF, 0xFFFF);
 	Timer0_Wait(200);
@@ -338,52 +338,6 @@ void sendCemsMessages(void) {
 
 void sendMonitorMessage(void) {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
-}
-
-/*****************************************************************************/
-/********************** Additional Helper Functions ************************/
-/*****************************************************************************/
-static uint32_t getMsTick(void) {
-	return msTicks;
-}
-
-static void prepareStableState(void) {
-	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
-	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
-	segNum = 0; 						//Reset the segnum count to 0
-	fireAlert = 0; 						//Clears the "fire alert" flag
-	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
-	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
-	lightLowWarningFlag = 0;			//Clears the "low light warning" flag
-	offBlueLed();
-	offRedLed();
-	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
-	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
-	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
-	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
-	oledUpdatedFlag = 0;			//Clears the "Oled has been updated" flag
-	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
-	disableGPIOTempInterrupt();
-	disableGPIOLightInterrupt();
-	light_shutdown();
-}
-
-static void prepareMonitorState(void) {
-	enableGPIOTempInterrupt();
-	sendMonitorMessage();
-	TIM_Cmd(LPC_TIM1, ENABLE);
-	prepareMonitorReadingsOled();
-	led7seg_setChar(invertedChars[0], TRUE);
-	light_enable();
-	light_setRange(LIGHT_RANGE_4000);
-	light_clearIrqStatus();
-	setLightThreshold();
-	initLightInterrupt();
-	updateLightSensor();
-	updateAccSensor();
-	oledStatus = MONITOR_READINGS;
-	cancelOptionFlag = 0;
-	sendHelpMsgFlag = 0;
 }
 
 /*****************************************************************************/
@@ -443,13 +397,13 @@ static void init_i2c(void) {
 	I2C_Cmd(LPC_I2C2, ENABLE);
 }
 
-void initLightInterrupt(void) {
+static void initLightInterrupt(void) {
 	GPIO_SetDir(2, (1 << 5), 0);
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5;
 	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 }
 
-void initTempInterrupt(void) {
+static void initTempInterrupt(void) {
 	GPIO_SetDir(0, (1 << 2), 0);
 	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 	LPC_GPIOINT ->IO0IntEnF |= (1 << 2);
@@ -548,13 +502,13 @@ static void initEint0Interrupt(void) {
 	LPC_SC ->EXTPOLAR = 0;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 	NVIC_SetPriority(EINT0_IRQn, NVIC_EncodePriority(5, 1, 1));
-	NVIC_EnableIRQ(EINT0_IRQn); // Enable EINT0 interrupt
+	NVIC_EnableIRQ(EINT0_IRQn);
 }
 
 static void initEint3Interrupt(void) {
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	NVIC_SetPriority(EINT3_IRQn, NVIC_EncodePriority(5, 1, 0));
-	NVIC_EnableIRQ(EINT3_IRQn); // Enable EINT3 interrupt
+	NVIC_EnableIRQ(EINT3_IRQn);
 }
 
 static void initBoardPosition(void) {
@@ -584,6 +538,51 @@ static void initAll(void) {
 	initEint3Interrupt();
 }
 
+/*****************************************************************************/
+/********************** Additional Helper Functions ************************/
+/*****************************************************************************/
+static uint32_t getMsTick(void) {
+	return msTicks;
+}
+
+static void prepareStableState(void) {
+	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
+	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
+	segNum = 0; 						//Reset the segnum count to 0
+	fireAlert = 0; 						//Clears the "fire alert" flag
+	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
+	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
+	lightLowWarningFlag = 0;			//Clears the "low light warning" flag
+	offBlueLed();
+	offRedLed();
+	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
+	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
+	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
+	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
+	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
+	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
+	disableGPIOTempInterrupt();
+	disableGPIOLightInterrupt();
+	light_shutdown();
+}
+
+static void prepareMonitorState(void) {
+	enableGPIOTempInterrupt();
+	sendMonitorMessage();
+	TIM_Cmd(LPC_TIM1, ENABLE);
+	prepareMonitorReadingsOled();
+	led7seg_setChar(invertedChars[0], TRUE);
+	light_enable();
+	light_setRange(LIGHT_RANGE_4000);
+	light_clearIrqStatus();
+	setLightThreshold();
+	initLightInterrupt();
+	updateLightSensor();
+	updateAccSensor();
+	oledStatus = MONITOR_READINGS;
+	cancelOptionFlag = 0;
+	sendHelpMsgFlag = 0;
+}
 /*****************************************************************************/
 /******************************* Handlers ************************************/
 /*****************************************************************************/
@@ -658,7 +657,6 @@ void EINT3_IRQHandler(void) {
 		}
 		LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 	}
-//	NVIC_ClearPendingIRQ(EINT3_IRQn);
 }
 
 void TIMER1_IRQHandler(void) {
