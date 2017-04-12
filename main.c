@@ -55,7 +55,6 @@ typedef enum {
 /*****************************************************************************/
 /*************************** Variable Declarations ***************************/
 /*****************************************************************************/
-
 CUTE_STATE cuteStatus = STABLE_STATE;
 OLED_STATE oledStatus = STABLE;
 uint32_t lightReading;
@@ -539,7 +538,7 @@ static void initAll(void) {
 }
 
 /*****************************************************************************/
-/********************** Additional Helper Functions ************************/
+/********************** Additional Helper Functions **************************/
 /*****************************************************************************/
 static uint32_t getMsTick(void) {
 	return msTicks;
@@ -590,6 +589,7 @@ void SysTick_Handler(void) {
 	msTicks++;
 }
 
+//Handler for the BLUE & RED blinking LED
 void RIT_IRQHandler(void) {
 
 	if (toggleBlink == 0) {
@@ -614,12 +614,14 @@ void RIT_IRQHandler(void) {
 	NVIC_ClearPendingIRQ(RIT_IRQn);
 }
 
+//Handler for SW3 Emergency button
 void EINT0_IRQHandler(void) {
 	sendHelpMsgFlag = 1;
 	LPC_SC ->EXTINT = 1;
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 }
 
+//Handler for temperature and light interrupt
 void EINT3_IRQHandler(void) {
 	if (((LPC_GPIOINT ->IO2IntStatF >> 5) & 0x1)) {
 		if (lightLowWarningFlag == 0) {
@@ -659,6 +661,7 @@ void EINT3_IRQHandler(void) {
 	}
 }
 
+//Handler for periodic 7segment display and 5AF checks
 void TIMER1_IRQHandler(void) {
 	if (LPC_TIM1 ->IR & (1 << 0)) {
 		segNum = (++segNum) % 16;
