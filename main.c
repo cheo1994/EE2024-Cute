@@ -33,7 +33,7 @@
 /*****************************************************************************/
 /***************************** Definitions ***********************************/
 /*****************************************************************************/
-#define TEMPERATURE_THRESHOLD 320
+#define TEMPERATURE_THRESHOLD 260
 #define LIGHT_LOW_THRESHOLD 50 // 50 Lux is the low light threshold
 #define TEMP_SCALAR_DIV10 1
 #define TEMP_HALF_PERIODS 340
@@ -58,7 +58,7 @@ typedef enum {
 CUTE_STATE cuteStatus = STABLE_STATE;
 OLED_STATE oledStatus = STABLE;
 uint32_t lightReading;
-int32_t temperatureReading;
+volatile int32_t temperatureReading;
 int NNN = 0;
 int fireAlert = 0;
 int moveInDarkAlert = 0;
@@ -183,10 +183,6 @@ void accReadToString(char* xStr, char* yStr, char* zStr) {
 /*****************************************************************************/
 /***************** Temperature Helper Functions *****************************/
 /*****************************************************************************/
-void updateTempSensor(void) {
-	temperatureReading = temp_read();
-}
-
 void tempReadToString(char *str) {
 	char tempBuffer[5] = "";
 	sprintf(tempBuffer, "%.1f", temperatureReading / 10.0);
@@ -338,7 +334,55 @@ void sendCemsMessages(void) {
 void sendMonitorMessage(void) {
 	UART_Send(LPC_UART3, monitorMsg, monitorMsgLen, BLOCKING);
 }
+/*****************************************************************************/
+/********************** Additional Helper Functions **************************/
+/*****************************************************************************/
+static uint32_t getMsTick(void) {
+	return msTicks;
+}
 
+static void prepareStableState(void) {
+	disableGPIOTempInterrupt();
+	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
+	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
+	segNum = 0; 						//Reset the segnum count to 0
+	fireAlert = 0; 						//Clears the "fire alert" flag
+	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
+	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
+	lightLowWarningFlag = 0;			//Clears the "low light warning" flag
+	temperatureReading = 0;
+	offBlueLed();
+	offRedLed();
+	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
+	TIM_ResetCounter(LPC_TIM1);		//Resets the counter timer for 7seg
+	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
+	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
+	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
+	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
+	disableGPIOLightInterrupt();
+	light_shutdown();
+}
+
+static void prepareMonitorState(void) {
+	sendMonitorMessage();
+	TIM_Cmd(LPC_TIM1, ENABLE);
+	prepareMonitorReadingsOled();
+	led7seg_setChar(invertedChars[0], TRUE);
+	light_enable();
+	light_setRange(LIGHT_RANGE_4000);
+	light_clearIrqStatus();
+	setLightThreshold();
+	initLightInterrupt();
+	updateLightSensor();
+	updateAccSensor();
+	oledStatus = MONITOR_READINGS;
+	cancelOptionFlag = 0;
+	sendHelpMsgFlag = 0;
+	temp_t1 = 0;
+	temp_t2 = 0;
+	temp_count = 0;
+	enableGPIOTempInterrupt();
+}
 /*****************************************************************************/
 /**************************** Initializers ***********************************/
 /*****************************************************************************/
@@ -396,13 +440,13 @@ static void init_i2c(void) {
 	I2C_Cmd(LPC_I2C2, ENABLE);
 }
 
-static void initLightInterrupt(void) {
+void initLightInterrupt(void) {
 	GPIO_SetDir(2, (1 << 5), 0);
 	LPC_GPIOINT ->IO2IntEnF |= 1 << 5;
 	LPC_GPIOINT ->IO2IntClr |= (1 << 5);
 }
 
-static void initTempInterrupt(void) {
+void initTempInterrupt(void) {
 	GPIO_SetDir(0, (1 << 2), 0);
 	LPC_GPIOINT ->IO0IntClr |= (1 << 2);
 	LPC_GPIOINT ->IO0IntEnF |= (1 << 2);
@@ -537,51 +581,7 @@ static void initAll(void) {
 	initEint3Interrupt();
 }
 
-/*****************************************************************************/
-/********************** Additional Helper Functions **************************/
-/*****************************************************************************/
-static uint32_t getMsTick(void) {
-	return msTicks;
-}
 
-static void prepareStableState(void) {
-	oled_clearScreen(OLED_COLOR_BLACK);	//Clear the OLED display
-	led7seg_setChar(' ', FALSE);		//Blank off the LED 7 Segment display
-	segNum = 0; 						//Reset the segnum count to 0
-	fireAlert = 0; 						//Clears the "fire alert" flag
-	ritInterruptEnabledFlag = 0; 		//Turn off the RGB led
-	moveInDarkAlert = 0;				//Clears the "moving in dark" flag
-	lightLowWarningFlag = 0;			//Clears the "low light warning" flag
-	offBlueLed();
-	offRedLed();
-	TIM_Cmd(LPC_TIM1, DISABLE); 		//Disables timer for 7Seg
-	TIM_ResetCounter(LPC_TIM1 );		//Resets the counter timer for 7seg
-	NVIC_DisableIRQ(RIT_IRQn);			//Disables the RGB
-	oledStatus = STABLE;				//Changes the Oled status to STABLE Mode
-	oledUpdatedFlag = 0;				//Clears the "Oled has been updated" flag
-	pca9532_setLeds(0x0, 0xFFFF);		//Turns off the 16-Led
-	disableGPIOTempInterrupt();
-	disableGPIOLightInterrupt();
-	light_shutdown();
-}
-
-static void prepareMonitorState(void) {
-	enableGPIOTempInterrupt();
-	sendMonitorMessage();
-	TIM_Cmd(LPC_TIM1, ENABLE);
-	prepareMonitorReadingsOled();
-	led7seg_setChar(invertedChars[0], TRUE);
-	light_enable();
-	light_setRange(LIGHT_RANGE_4000);
-	light_clearIrqStatus();
-	setLightThreshold();
-	initLightInterrupt();
-	updateLightSensor();
-	updateAccSensor();
-	oledStatus = MONITOR_READINGS;
-	cancelOptionFlag = 0;
-	sendHelpMsgFlag = 0;
-}
 /*****************************************************************************/
 /******************************* Handlers ************************************/
 /*****************************************************************************/
@@ -591,7 +591,7 @@ void SysTick_Handler(void) {
 
 //Handler for the BLUE & RED blinking LED
 void RIT_IRQHandler(void) {
-
+//	fireAlert = 0;
 	if (toggleBlink == 0) {
 		if (fireAlert == 1) {
 			onRedLed();
@@ -722,7 +722,7 @@ int main(void) {
 
 			if (fireAlert == 0 && temperatureReading > TEMPERATURE_THRESHOLD) {
 				fireAlert = 1;
-				if (ritInterruptEnabledFlag == 0) {
+				if (fireAlert == 1 && ritInterruptEnabledFlag == 0) {
 					enableRitRGBinterrupt();
 					ritInterruptEnabledFlag = 1;
 				}
