@@ -14,4 +14,4 @@ Expose students to programming for embedded devices.
 | -------------------|:---------------------------------------------:|	
 | Light sensor       | Detect low light environment below 50 lux     |
 | Temperature sensor | Detect temperatures above 35 degrees celcius  |
-| UART               | Send an alert via UART terminal if temperature|
+| UART               | Send an alert via UART terminal if temperature or light alarm reached|
