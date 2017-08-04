@@ -19,7 +19,6 @@ In this project, we were exposed to programming hardware components such as seve
 * Eclipse Mars
 
 
-
 | Device Components  | Requirements							     							|
 | -------------------|:--------------------------------------------------------------------:|	
 | Light sensor       | Detect low light environment below 50 lux     						|
@@ -29,7 +28,7 @@ In this project, we were exposed to programming hardware components such as seve
 | Push buttons		 | Enable user to turn on and off device/components 					|
 | OLED     			 | Display light, temperature & accelerometer readings 					| 
 | 7-segment led 	 | Timer from 0 to 15 													|
-| 16 mini leds 		 | Indicate to completion of an action 									|
+| 16 mini leds 		 | Indicate completion of an action 									|
 
 
 ### Learning Outcomes
