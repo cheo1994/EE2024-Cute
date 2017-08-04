@@ -3,8 +3,15 @@ EE2024: Programming for Computer Interfaces
 
 CUTE: Care Unit for The Elderly
 
-Project was done on a baseboard with LPC1769. 
+Project was done on a LPCXpresso Base Board along with the LPC1769. 
 
-The project makes use of several sensors such as light, temperature and the accelerometer. It reads the values and
-displays it for the user to see. In the event the readings trigger any warnings, an alert would be sent via the UART
-terminal to alert the care team about the elderly.
+### Project objective 
+Expose students to programming for embedded devices.
+
+###Description: In this project, we were exposed to programming several push buttons, light sensors, a temperature sensor, an accelerometer, UART and a LED display. 
+
+| Component          | Requirement								     |
+| -------------------|:---------------------------------------------:|	
+| Light sensor       | Detect low light environment below 50 lux     |
+| Temperature sensor | Detect temperatures above 35 degrees celcius  |
+| UART               | Send an alert via UART terminal if temperature|
