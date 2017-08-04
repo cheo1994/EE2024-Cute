@@ -1,4 +1,4 @@
-# EE2024-Cute
+## EE2024-Cute
 EE2024: Programming for Computer Interfaces
 
 CUTE: Care Unit for The Elderly
