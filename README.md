@@ -8,7 +8,7 @@ Project was done on a LPCXpresso Base Board along with the LPC1769.
 ### Project objective 
 Expose students to programming for embedded devices.
 
-###Description: In this project, we were exposed to programming several push buttons, light sensors, a temperature sensor, an accelerometer, UART and a LED display. 
+### Description: In this project, we were exposed to programming several push buttons, light sensors, a temperature sensor, an accelerometer, UART and a LED display. 
 
 | Component          | Requirement								     |
 | -------------------|:---------------------------------------------:|	
